@@ -1,0 +1,8 @@
+{
+  "IndexBamFile.gatk_docker": "broadinstitute/gatk:4.0.11.0",
+  "IndexBamFile.input_bam_file": "gs://broad-dsde-methods-kiran/pb_eap/NA12878rep1/m64020_190208_213731.subreads.bam",
+
+  "IndexBamFile.mem_gb": "128",
+  "IndexBamFile.disk_space_gb": "2048",
+  "IndexBamFile.boot_disk_size_gb": "100"
+}
