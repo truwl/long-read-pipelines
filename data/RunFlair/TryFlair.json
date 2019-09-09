@@ -1,0 +1,5 @@
+{
+    "flair_alignment.genome_fa": "gs://broad-dsde-methods-kiran/scratch/beryl/Homo_sapiens_assembly38_noALT_noHLA_noDecoy.fasta",
+    "flair_alignment.fastq": "gs://broad-dsde-methods-kiran/scratch/beryl/fibs_SM3QHWG_direct_022019.fastq",
+    "flair_alignment.prefix": "attempt"
+}
