@@ -1,7 +1,7 @@
 version 1.0
 # Run the MarginPolish reads polisher on a given set of data to produce a better assembly.
 #
-# This image assumes that the marginPolish utility is on the path of the given docker image.
+# This WDL assumes that the marginPolish utility is on the path of the given docker image.
 # For an image that meets this criterion, see (on dockerhub):
 #   jonnsmith/lrma_alignment_toolbox:latest
 #
