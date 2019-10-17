@@ -12,7 +12,7 @@ version 1.0
 #
 #   Required:
 #     String docker                - Docker image in which to run this task.
-#     File bam_file                - Bam file containing reads aligned to the given reference that should be polished.
+#     File bam_file                - Bam file containing reads aligned to the given assembly that should be polished.
 #     File bam_index               - Index for input bam_file.
 #     File assembly_fasta          - FASTA file containing the assembly/reference to which the given reads are aligned.
 #     File assembly_index          - Index for the input assembly_fasta.
