@@ -21,6 +21,12 @@ version 1.0
 #
 #   Optional:
 #     String? interval             - Interval string over which to run this task (contig:start-end).
+#     String? log_level            - Set the log level [default = info]
+#     String? feature_type         - Feature type for output features of chunks for HELEN.  Valid types:
+#                                      splitRleWeight:  [default] run lengths split into chunks
+#                                      simpleWeight:    weighted likelihood from POA nodes (non-RLE)
+#     Int? split_rle_weight_max_rl - Max run length (for 'splitRleWeight' type only) [default = 10]
+#     Boolean? true_reference_bam  - True reference aligned to ASSEMBLY_FASTA, for HELEN features.  Setting this parameter will include labels in output.
 #
 #   Runtime:
 #     Int  mem                     - Amount of memory to give to the machine running each task in this workflow.
@@ -44,6 +50,11 @@ workflow MarginPolish {
         File config_json
 
         String? interval
+        String? log_level
+
+        String? feature_type
+        Int? split_rle_weight_max_rl
+        Boolean? true_reference_bam
 
         Int? mem_gb
         Int? preemptible_attempts
@@ -66,6 +77,10 @@ workflow MarginPolish {
             config_json               = config_json,
 
             interval                  = interval,
+            log_level                 = log_level,
+            feature_type              = feature_type,
+            split_rle_weight_max_rl   = split_rle_weight_max_rl,
+            true_reference_bam        = true_reference_bam,
 
             mem_gb                    = mem_gb,
             preemptible_attempts      = preemptible_attempts,
@@ -103,6 +118,11 @@ task MarginPolishTask {
 
         # Optional:
         String? interval
+        String? log_level
+
+        String? feature_type
+        Int? split_rle_weight_max_rl
+        Boolean? true_reference_bam
 
         # Runtime Options:
         Int? mem_gb
@@ -117,6 +137,8 @@ task MarginPolishTask {
 
     String bam_extension = ".bam"
     String bam_file_base_name = basename( bam_file, bam_extension )
+
+    String true_reference_bam_arg = if defined(true_reference_bam) && true_reference_bam then "-u" else ""
 
     String output_base_name = bam_file_base_name + '.margin_polish'
 
@@ -189,7 +211,15 @@ task MarginPolishTask {
             -f \
             -i ~{repeat_counts_output_base_name} \
             -j ~{poa_output_base_name} \
-            -o ~{output_base_name}
+            -o ~{output_base_name} \
+            ~{"-a" + log_level} \
+            ~{"-F" + feature_type} \
+            ~{"-L" + split_rle_weight_max_rl} \
+            ~{true_reference_bam_arg}
+
+        String? feature_type
+        Int? split_rle_weight_max_rl
+        Boolean? true_reference_bam
 
         endTime=`date +%s.%N`
         echo "EndTime: $endTime" >> ~{timing_output_file}

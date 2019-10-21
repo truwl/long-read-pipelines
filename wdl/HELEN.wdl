@@ -21,6 +21,9 @@ version 1.0
 #     File helen_images_from_margin_polish - Tar file containing images created by marginPolish for use with HELEN.
 #     File model_pickle                    - Python Pickle file contianing the model to use for polishing with HELEN.
 #
+#   Optional:
+#     Int? batch_size                      - Batch size for testing.  Set to 512 or 1024 for a balanced execution time. (=512)
+#
 #   Runtime:
 #     Int? num_gpus                        - How many GPUs to use for accelerated processing.
 #     String? gpu_type                     - Which kind of GPU to use for accelerated processing.
@@ -38,6 +41,8 @@ workflow HELEN {
         File helen_images_from_margin_polish
         File model_pickle
 
+        Int? batch_size
+
         Int? mem_gb
         Int? preemptible_attempts
         Int? disk_space_gb
@@ -53,6 +58,8 @@ workflow HELEN {
 
             helen_images_from_margin_polish = helen_images_from_margin_polish,
             model_pickle                    = model_pickle,
+
+            batch_size                      = batch_size,
 
             mem_gb                          = mem_gb,
             preemptible_attempts            = preemptible_attempts,
@@ -139,7 +146,7 @@ task CallConsensusTask {
     # ------------------------------------------------
     # Task-Specific runtime settings:
     String helen_install_path = '/helen'
-    String batch_size = select_first([batch_size, 512])
+    String batch_size_arg = select_first([batch_size, 512])
     String gpu_arg = if (defined(num_gpus) && num_gpus > 0) then "-g" else ""
 
     # ------------------------------------------------
@@ -184,7 +191,7 @@ task CallConsensusTask {
         python3 ~{helen_install_path}/call_consensus.py \
             -i $image_dir \
             -o ~{output_file_dir} \
-            -b ~{batch_size} \
+            -b ~{batch_size_arg} \
             -m ~{model_pickle} \
             -p ~{output_base_name} \
             -w 0 \
