@@ -18,7 +18,7 @@ version 1.0
 #
 #   Required:
 #     String docker                                               - Docker image in which to run this task.
-#     File input_reads                                            - Bam file containing reads from which to create an assembly.
+#     File input_reads                                            - FASTA/FASTQ file containing reads from which to create an assembly.
 #
 #   Optional:
 #     Int? reads_minReadLength                                    - Read length cutoff (=10000).
