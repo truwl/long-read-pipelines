@@ -325,11 +325,10 @@ task ShastaTask {
         startTime=`date +%s.%N`
         echo "StartTime: $startTime" > ~{timing_output_file}
 
-        /opt/shasta/build/shasta-install/bin/shasta \
+        sudo /opt/shasta/build/shasta-install/bin/shasta \
             --input ~{input_reads} \
             --assemblyDirectory ~{assembly_dir} \
             --threads $num_threads \
-            --memoryBacking 2M \
             ~{"--Reads.minReadLength" +  reads_minReadLength } \
             ~{"--Reads.palindromicReads.maxSkip" + reads_palindromicReads_maxSkip } \
             ~{"--Reads.palindromicReads.maxMarkerFrequency" + reads_palindromicReads_maxMarkerFrequency } \
