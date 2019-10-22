@@ -15,8 +15,6 @@ version 1.0
 #     File bam_file                - Bam file containing reads aligned to the given assembly that should be polished.
 #     File bam_index               - Index for input bam_file.
 #     File assembly_fasta          - FASTA file containing the assembly/reference to which the given reads are aligned.
-#     File assembly_index          - Index for the input assembly_fasta.
-#     File assembly_dict           - Sequence dictionary for the input assembly_fasta.
 #     File config_json             - MarginPolish runtime configuration JSON file.
 #
 #   Optional:
@@ -44,8 +42,6 @@ workflow MarginPolish {
         File bam_index
 
         File assembly_fasta
-        File assembly_index
-        File assembly_dict
 
         File config_json
 
@@ -71,8 +67,6 @@ workflow MarginPolish {
             bam_index                 = bam_index,
 
             assembly_fasta            = assembly_fasta,
-            assembly_index            = assembly_index,
-            assembly_dict             = assembly_dict,
 
             config_json               = config_json,
 
@@ -111,8 +105,6 @@ task MarginPolishTask {
         File bam_index
 
         File assembly_fasta
-        File assembly_index
-        File assembly_dict
 
         File config_json
 

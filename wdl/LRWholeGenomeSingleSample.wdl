@@ -28,7 +28,8 @@ version 1.0
 #       File tandem_repeat_bed          - BED file representing tandem repeats in the reference.
 #
 #   Optional:
-#       String sample_name              - The sample name to use in place of the autodetected name.
+#       String? sample_name             - The sample name to use in place of the autodetected name.
+#       Boolean? run_shasta_mp_helen    - If true, will run Shasta, MarginPolish, and HELEN on merged corrected reads.
 #
 #
 # Licensing:
@@ -53,12 +54,18 @@ import "DeepVariantLR.wdl" as DV
 import "GATKBestPractice.wdl" as GATKBP
 import "Finalize.wdl" as FF
 
+import "Shasta.wdl" as Shasta
+import "MarginPolish.wdl" as MarginPolish
+import "HELEN.wdl" as HELEN
+
 workflow LRWholeGenomeSingleSample {
     input {
         Array[String] gcs_dirs
 
         String? sample_name
         Boolean? sample_is_female
+
+		Boolean? run_shasta_mp_helen
 
         File ref_fasta
         File ref_fasta_fai
@@ -244,6 +251,53 @@ workflow LRWholeGenomeSingleSample {
     call VB.ValidateBam as ValidateAllRemaining {
         input:
             input_bam = MergeAllRemaining.merged,
+    }
+
+    if (defined(run_shasta_mp_helen) && run_shasta_mp_helen) {
+
+        # TODO: Remove these paths and put the images / files in a SENSIBLE place!
+        String shasta_mp_helen_docker = "jonnsmith/lrma_alignment_toolbox:latest"
+        File margin_polish_config = "gs://broad-dsde-methods-jonn/marginPolish_Helen/allParams.np.human.guppy-ff-235.json"
+        File helen_trained_rnn_pickle = "gs://broad-dsde-methods-jonn/marginPolish_Helen/941_flip235_v001.pkl"
+
+        # Create fastq from merged CCS reads:
+        call Utils.SamToFastq as SamToFastq {
+            input:
+                input_bam	= MergeAllRemaining.merged
+        }
+
+        # Create shasta assembly from merged CCS bam:
+        call Shasta.Shasta as Shasta {
+            input:
+                docker = shasta_mp_helen_docker,
+                input_reads = SamToFastq.output_fastq
+        }
+
+        # Map CCS reads to new shasta assembly and index resulting bam:
+        call AR.Minimap2_For_Shasta as AlignCorrectedReadsToShastaAssembly {
+            input:
+                reads_fastq = SamToFastq.output_fastq,
+                assembly_fasta = Shasta.assembled_fasta,
+                PL = "ONT"
+        }
+
+        # Run Margin Polish on Shasta assembly and mapped reads:
+        call MarginPolish.MarginPolish as MarginPolish {
+            input:
+                docker = shasta_mp_helen_docker,
+                bam_file = AlignCorrectedReadsToShastaAssembly.aligned_bam_out,
+                bam_index = AlignCorrectedReadsToShastaAssembly.aligned_bam_out_idx,
+                assembly_fasta = Shasta.assembled_fasta,
+                config_json = margin_polish_config
+        }
+
+        # Run HELEN
+        call HELEN.HELEN as Helen {
+            input:
+                docker = shasta_mp_helen_docker,
+                helen_images_from_margin_polish = MarginPolish.images_for_helen,
+                model_pickle = helen_trained_rnn_pickle
+        }
     }
 
     call CallSV.PBSV as PBSV {

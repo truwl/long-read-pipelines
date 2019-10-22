@@ -61,3 +61,54 @@ task Minimap2 {
         docker:                 select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
+
+# TODO: describe purpose
+task Minimap2_For_Shasta {
+    input {
+        File reads_fastq
+        File assembly_fasta
+        String PL
+
+        RuntimeAttr? runtime_attr_override
+    }
+
+    String map_arg = if (PL == "ONT") then "map-ont" else "map-pb"
+
+    Int cpus = 4
+    Int disk_size = 1.5*(ceil(size(reads_fastq, "GB")) + ceil(size(assembly_fasta, "GB")))
+
+    String aligned_bam_out = basename(reads_fastq) + '.bam'
+
+    command <<<
+        set -euxo pipefail
+
+        minimap2 -ax ~{map_arg} -t ~{cpus} ~{assembly_fasta} ~{reads_fastq} | samtools sort -@~{cpus} | samtools view -hb -F 0x104 > ~{aligned_bam_out}
+        samtools index @~{cpus} ~{aligned_bam_out}
+    >>>
+
+    output {
+        File aligned_bam_out = "~{aligned_bam_out}"
+        File aligned_bam_out_idx = "~{aligned_bam_out}.bai"
+    }
+
+    #########################
+    RuntimeAttr default_attr = object {
+        cpu_cores:          "~{cpus}",
+        mem_gb:             20,
+        disk_gb:            "~{disk_size}",
+        boot_disk_gb:       10,
+        preemptible_tries:  1,
+        max_retries:        0,
+        docker:             "kgarimella/lr-align:0.01.18"
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu:                    select_first([runtime_attr.cpu_cores,         default_attr.cpu_cores])
+        memory:                 select_first([runtime_attr.mem_gb,            default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " +  select_first([runtime_attr.disk_gb,           default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
+        preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
+        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+    }
+}

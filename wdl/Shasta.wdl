@@ -171,7 +171,7 @@ workflow Shasta {
 
     output {
         File assembly_stranded_gfa              = ShastaTask.assembly_stranded_gfa
-        File assembly_name                      = ShastaTask.assembly_name
+        File assembled_fasta                    = ShastaTask.assembled_fasta
         File assembly_gfa                       = ShastaTask.assembly_gfa
         File assembly_graph_dot                 = ShastaTask.assembly_graph_dot
         File assembly_chain_length_hist         = ShastaTask.assembly_chain_length_hist
@@ -388,7 +388,7 @@ task ShastaTask {
     # Outputs:
     output {
         File assembly_stranded_gfa              = "${out_assembly_stranded_gfa}"
-        File assembly_name                      = "${out_assembly_name}"
+        File assembled_fasta                    = "${out_assembly_name}"
         File assembly_gfa                       = "${out_assembly_gfa}"
         File assembly_graph_dot                 = "${out_assembly_graph_dot}"
         File assembly_chain_length_hist         = "${out_assembly_chain_length_hist}"
