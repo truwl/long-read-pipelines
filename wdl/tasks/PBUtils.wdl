@@ -85,6 +85,68 @@ task GetRunInfo {
     }
 }
 
+task CCSWithReHeader {
+    input {
+        File subreads
+        File original_header_hd_line
+
+        Int min_passes = 3
+        Float min_snr = 2.5
+        Int min_length = 10
+        Int max_length = 50000
+        Float min_rq = 0.99
+
+        Int cpus = 4
+
+        RuntimeAttr? runtime_attr_override
+    }
+
+    Int disk_size = 2*ceil(size(subreads, "GB"))
+
+    command <<<
+        set -euxo pipefail
+
+        samtools view -H ~{subreads} > temp.txt
+        cat ~{original_header_hd_line} temp.txt | sed '2d' > temp.header # essentially replace HD line of the split BAM with save_hd_line.txt
+        samtools reheader temp.header ~{subreads} > temp.bam
+        mv temp.bam ~{subreads}
+
+        ccs --min-passes ~{min_passes} \
+            --min-snr ~{min_snr} \
+            --min-length ~{min_length} \
+            --max-length ~{max_length} \
+            --min-rq ~{min_rq} \
+            --num-threads ~{cpus} \
+            ~{subreads} ccs_unmapped.bam
+    >>>
+
+    output {
+        File consensus = "ccs_unmapped.bam"
+        File report = "ccs_report.txt"
+    }
+
+    #########################
+    RuntimeAttr default_attr = object {
+        cpu_cores:          cpus,
+        mem_gb:             40,
+        disk_gb:            disk_size,
+        boot_disk_gb:       10,
+        preemptible_tries:  2,
+        max_retries:        1,
+        docker:             "quay.io/broad-long-read-pipelines/lr-pb:0.01.04"
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu:                    select_first([runtime_attr.cpu_cores,         default_attr.cpu_cores])
+        memory:                 select_first([runtime_attr.mem_gb,            default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " +  select_first([runtime_attr.disk_gb,           default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
+        preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
+        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+    }
+}
+
 task CCS {
     input {
         File subreads

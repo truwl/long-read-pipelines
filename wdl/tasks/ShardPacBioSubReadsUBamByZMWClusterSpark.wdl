@@ -3,9 +3,11 @@ version 1.0
 import "Structs.wdl"
 
 workflow ShardPacBioSubReadsUBamByZMWClusterSpark {
-	input{
+	input {
 		File input_ubam
 		String output_prefix
+
+        Int? shard_size
 	}
 
     call CreateSparkIndex {
@@ -17,7 +19,8 @@ workflow ShardPacBioSubReadsUBamByZMWClusterSpark {
 		input:
 		input_ubam = input_ubam,
         input_ubam_splittingindex = CreateSparkIndex.spark_sbi_index,
-		split_prefix = output_prefix
+		split_prefix = output_prefix,
+        shard_size = shard_size
 	}
 
     output {
@@ -81,12 +84,16 @@ task SparkShard {
         File input_ubam
         File input_ubam_splittingindex
 
+        Int? shard_size
+
         String split_prefix
 
         RuntimeAttr? runtime_attr_override
     }
 
     Int disk_size = 3000
+
+    String sparse_zmws_per_shards = if (defined(shard_size)) then "--shard-size ~{shard_size}" else " "
 
     command <<<
         set -euo pipefail
@@ -98,6 +105,7 @@ task SparkShard {
             -I ~{input_ubam} \
             --read-index ~{input_ubam_splittingindex} \
             -O split_dir/~{split_prefix} \
+            ~{sparse_zmws_per_shards} \
             --use-jdk-deflater \
             --use-jdk-inflater \
             -- \
