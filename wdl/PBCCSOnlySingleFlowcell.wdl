@@ -45,7 +45,6 @@ workflow PBCCSOnlySingleFlowcell {
         String ID  = PU
         String DIR = SM + "." + ID
 
-        # call Utils.ShardLongReads { input: unmapped_files = [ subread_bam ], num_reads_per_split = num_reads_per_split }
         call SparkShard.ShardPacBioSubReadsUBamByZMWClusterSpark as ShardUBAM {
             input:
                 input_ubam = subread_bam,
@@ -54,9 +53,11 @@ workflow PBCCSOnlySingleFlowcell {
         }
 
         scatter (subreads in ShardUBAM.split_bam) {
-        # scatter (subreads in ShardLongReads.unmapped_shards) {
-            call PB.CCSWithReHeader as CCS { input: subreads = subreads, original_header_hd_line = ShardUBAM.original_header_hd_line }
-            #call PB.CCSWithClasses { input: subreads = subreads }
+            call PB.CCSWithReHeader as CCS {
+            	input:
+            		subreads = subreads,
+            		original_header_hd_line = ShardUBAM.original_header_hd_line
+            	}
         }
 
         # merge the corrected per-shard BAM/report into one, corresponding to one raw input BAM
