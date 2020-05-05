@@ -651,10 +651,39 @@ if __name__ == '__main__':
     parser.add_argument('--ssw-path', help='Path to the Striped Smith-Waterman library', type=str, default='/lrma/ssw')
     parser.add_argument('--starcode-path', help='Path to the starcode executable', type=str, default='/lrma/starcode-master/starcode')
 
+    # User-defined length for the marker segments:
+    parser.add_argument(
+        '--poly-t-length', help='Expected length of the poly-T section of the read.', type=int,
+        default=POLY_T_LENGTH
+    )
+    parser.add_argument(
+        '--barcode-length', help='Length of the cell barcode used in the library prep.', type=int,
+        default=BARCODE_LENGTH
+    )
+    parser.add_argument(
+        '--umi-length', help='Length of the unique molecular identifier used in the library prep.', type=int,
+        default=UMI_LENGTH
+    )
+
     args = parser.parse_args()
 
     if args.whitelist_illumina and not args.whitelist_10x:
         print('Illumina whitelist provided but no 10x whitelist provided.')
         exit(1)
 
-    main(args.bam, args.name, args.adapter, args.reverse_adapter, args.whitelist_10x, args.whitelist_illumina, args.max_reads, args.contig, args.read_end_length, args.record_umis, args.ssw_path, args.starcode_path)
+    # TODO: This seems like kind of a hack - we should probably propagate these values through method calls
+    # Set Poly-T length here:
+    if args.poly_t_length:
+        POLY_T_LENGTH = args.poly_t_length
+
+    # Set barcode length here:
+    if args.barcode_length:
+        BARCODE_LENGTH = args.barcode_length
+
+    # Set UMI length here:
+    if args.umi_length:
+        UMI_LENGTH = args.umi_length
+
+    main(args.bam, args.name, args.adapter, args.reverse_adapter, args.whitelist_10x, args.whitelist_illumina,
+         args.max_reads, args.contig, args.read_end_length, args.record_umis, args.ssw_path, args.starcode_path)
+

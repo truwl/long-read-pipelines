@@ -56,7 +56,10 @@ task GetRunInfo {
         set -x
 
         export GCS_OAUTH_TOKEN=`gcloud auth application-default print-access-token`
-        python /usr/local/bin/detect_run_info.py ~{gcs_dir} > run_info.txt
+
+        # We need to update detect_run_info.py to make it sanitize fields.
+        # The `sed` statement here is a hack to get around an issue.
+        python /usr/local/bin/detect_run_info.py ~{gcs_dir} | sed 's#\\$##' > run_info.txt
     >>>
 
     output {

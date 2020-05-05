@@ -19,9 +19,6 @@ task FinalizeToFile {
         gsutil -m cp ~{file} ~{gcs_output_file}
     >>>
 
-    output {
-    }
-
     #########################
     RuntimeAttr default_attr = object {
         cpu_cores:          1,
@@ -60,9 +57,6 @@ task FinalizeToDir {
 
         gsutil -m cp ~{sep=' ' files} ~{gcs_output_dir}
     >>>
-
-    output {
-    }
 
     #########################
     RuntimeAttr default_attr = object {

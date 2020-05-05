@@ -26,6 +26,27 @@ WORKDIR /lrma
 RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /miniconda.sh \
     && bash /miniconda.sh -b -p /miniconda
 
+# Install samtools 1.11:
+RUN apt-get update
+RUN apt-get install -y bzip2 curl gnupg2
+RUN apt-get install -y libc-dev ncurses-dev
+
+#### Specific for google cloud support
+RUN echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] http://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list \
+		&& curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key --keyring /usr/share/keyrings/cloud.google.gpg  add - \
+		&& apt-get update -y \
+		&& apt-get install google-cloud-sdk -y
+
+RUN apt-get install -y libcurl4-openssl-dev libssl-dev
+
+# Get samtools source:
+RUN wget https://github.com/samtools/samtools/releases/download/1.11/samtools-1.11.tar.bz2 \
+		&& tar -xjf samtools-1.11.tar.bz2 \
+		&& cd samtools-1.11 \
+		&& ./configure \
+		&& make install
+RUN rm -rf /samtools-1.11 /samtools-1.11.tar.bz2
+
 # install conda packages
 ADD ./environment.yml /lrma/environment.yml
 RUN pip install --upgrade pip

@@ -2,6 +2,94 @@ version 1.0
 
 import "Structs.wdl"
 
+task ShardLongReads {
+    input {
+        Array[String] unmapped_files
+        Int? num_reads_per_split
+
+        RuntimeAttr? runtime_attr_override
+    }
+
+    Int nr = select_first([num_reads_per_split, 200000])
+    Int disk_size = 4*ceil(size(unmapped_files, "GB"))
+    Int num_files = length(unmapped_files)
+
+    command <<<
+        set -euxo pipefail
+
+        java -Dsamjdk.compression_level=0 -jar /usr/local/bin/gatk.jar ShardLongReads -I ~{sep=' -I ' unmapped_files} -nr ~{nr} -O ./ -DF WellformedReadFilter --use-jdk-deflater --use-jdk-inflater
+    >>>
+
+    output {
+        Array[File] unmapped_shards = glob("*.bam")
+    }
+
+    #########################
+    RuntimeAttr default_attr = object {
+        cpu_cores:          2,
+        mem_gb:             4,
+        disk_gb:            disk_size,
+        boot_disk_gb:       10,
+        preemptible_tries:  2,
+        max_retries:        1,
+        docker:             "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.6"
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu:                    select_first([runtime_attr.cpu_cores,         default_attr.cpu_cores])
+        memory:                 select_first([runtime_attr.mem_gb,            default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " +  select_first([runtime_attr.disk_gb,           default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
+        preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
+        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+    }
+}
+
+task ShardLongReadsWithCopy {
+    input {
+        Array[File] unmapped_files
+        Int? num_reads_per_split
+
+        RuntimeAttr? runtime_attr_override
+    }
+
+    Int nr = select_first([num_reads_per_split, 200000])
+    Int disk_size = 4*ceil(size(unmapped_files, "GB"))
+    Int num_files = length(unmapped_files)
+
+    command <<<
+        set -euxo pipefail
+
+        java -Dsamjdk.compression_level=0 -jar /usr/local/bin/gatk.jar ShardLongReads -I ~{sep=' -I ' unmapped_files} -nr ~{nr} -O ./ -DF WellformedReadFilter --use-jdk-deflater --use-jdk-inflater
+    >>>
+
+    output {
+        Array[File] unmapped_shards = glob("*.bam")
+    }
+
+    #########################
+    RuntimeAttr default_attr = object {
+        cpu_cores:          2,
+        mem_gb:             4,
+        disk_gb:            disk_size,
+        boot_disk_gb:       10,
+        preemptible_tries:  2,
+        max_retries:        1,
+        docker:             "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.6"
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu:                    select_first([runtime_attr.cpu_cores,         default_attr.cpu_cores])
+        memory:                 select_first([runtime_attr.mem_gb,            default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " +  select_first([runtime_attr.disk_gb,           default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
+        preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
+        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+    }
+}
+
 task PrepareManifest {
     input {
         Array[String] files
@@ -385,7 +473,7 @@ task CountBamRecords {
 
 task GrepCountBamRecords {
     input {
-        File bam
+        String bam
         String samfilter = ""
         String regex
         Boolean invert = false
@@ -400,6 +488,7 @@ task GrepCountBamRecords {
     command <<<
         set -euxo pipefail
 
+        export GCS_OAUTH_TOKEN=`gcloud auth application-default print-access-token`
         samtools view ~{samfilter} ~{bam} | grep ~{arg} ~{regex} > ~{prefix}.txt
     >>>
 
@@ -519,7 +608,7 @@ task Sum {
 
 task BamToTable {
     input {
-        File bam
+        String bam
         String prefix
 
         RuntimeAttr? runtime_attr_override
@@ -528,6 +617,7 @@ task BamToTable {
     Int disk_size = 1 + 2*ceil(size(bam, "GB"))
 
     command <<<
+        export GCS_OAUTH_TOKEN=`gcloud auth application-default print-access-token`
         samtools view ~{bam} | perl -n -e '($nm) = $_ =~ /NM:i:(\d+)/; ($as) = $_ =~ /AS:i:(\d+)/; ($za) = $_ =~ /ZA:Z:(\w+|\.)/; ($zu) = $_ =~ /ZU:Z:(\w+|\.)/; ($cr) = $_ =~ /CR:Z:(\w+|\.)/; ($cb) = $_ =~ /CB:Z:(\w+|\.)/; @a = split(/\s+/); print join("\t", $a[0], $a[1], $a[2], $a[3], $a[4], length($a[9]), $nm, $as, $za, $zu, $cr, $cb, $a[1], ($a[1] & 0x1 ? "paired" : "unpaired"), ($a[1] & 0x4 ? "unmapped" : "mapped"), ($a[1] & 0x10 ? "rev" : "fwd"), ($a[1] & 0x100 ? "secondary" : "primary"), ($a[1] & 0x800 ? "supplementary" : "non_supplementary")) . "\n"' | gzip > ~{prefix}.txt.gz
     >>>
 
@@ -689,5 +779,211 @@ task MergeBams {
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
         docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+    }
+}
+
+task MergeFiles {
+    # ------------------------------------------------
+    # Input args:
+    input {
+        Array[File] files_to_merge
+
+        String merged_file_name = "merged_file"
+
+        Int? mem_gb
+        Int? preemptible_attempts
+        Int? disk_space_gb
+        Int? cpu
+        Int? boot_disk_size_gb
+    }
+
+    # ------------------------------------------------
+    # Process input args:
+
+    String timing_output_file = "merge_fastas.timingInformation.txt"
+    Int split_size = 5400
+
+    # ------------------------------------------------
+    # Get machine settings:
+    Boolean use_ssd = false
+
+    Float input_files_size_gb = size(files_to_merge, "GiB")
+
+    # You may have to change the following two parameter values depending on the task requirements
+    Int default_ram_mb = 2048
+    Int default_disk_space_gb = ceil((input_files_size_gb * 2) + 1024)
+
+    Int default_boot_disk_size_gb = 15
+
+    # Mem is in units of GB but our command and memory runtime values are in MB
+    Int machine_mem = if defined(mem_gb) then mem_gb * 1024 else default_ram_mb
+
+    # ------------------------------------------------
+    # Run our command:
+    command <<<
+
+        set -e
+        startTime=`date +%s.%N`
+        echo "StartTime: $startTime" > ~{timing_output_file}
+
+        cat ~{sep=" " files_to_merge} > ~{merged_file_name}
+
+        endTime=`date +%s.%N`
+        echo "EndTime: $endTime" >> ~{timing_output_file}
+
+        # Get and compute timing information:
+        set +e
+        elapsedTime=""
+        which bc &> /dev/null ; bcr=$?
+        which python3 &> /dev/null ; python3r=$?
+        which python &> /dev/null ; pythonr=$?
+        if [[ $bcr -eq 0 ]] ; then elapsedTime=`echo "scale=6;$endTime - $startTime" | bc`;
+        elif [[ $python3r -eq 0 ]] ; then elapsedTime=`python3 -c "print( $endTime - $startTime )"`;
+        elif [[ $pythonr -eq 0 ]] ; then elapsedTime=`python -c "print( $endTime - $startTime )"`;
+        fi
+        echo "Elapsed Time: $elapsedTime" >> ~{timing_output_file}
+    >>>
+
+    # ------------------------------------------------
+    # Runtime settings:
+     runtime {
+         docker: "ubuntu:19.10"
+         memory: machine_mem + " MB"
+         disks: "local-disk " + select_first([disk_space_gb, default_disk_space_gb]) + if use_ssd then " SSD" else " HDD"
+         bootDiskSizeGb: select_first([boot_disk_size_gb, default_boot_disk_size_gb])
+         preemptible: select_first([preemptible_attempts, 0])
+         cpu: select_first([cpu, 1])
+     }
+
+    # ------------------------------------------------
+    # Outputs:
+    output {
+      File merged_file   = "${merged_file_name}"
+      File timing_info    = "${timing_output_file}"
+    }
+}
+
+# Get the current timestamp as a string.
+# Levergaes the unix `date` command.
+# You can enter your own date format string.
+# The default date string is:
+#     %Y%m%d_%H%M%S_%N
+# which corresponds to a date of the following form:
+# For August 10th, 2020 at 16:06:32.7091 EDT (20:06:32.7091 UTC):
+#     20200810_200632_709100000
+#
+task GetCurrentTimestampString {
+
+    meta {
+        # The volatile keyword forces call caching to be turned off, which is
+        # exactly what we want for this task.
+        # For more info see: https://cromwell.readthedocs.io/en/stable/optimizations/VolatileTasks/
+        volatile: true
+    }
+
+    input {
+        String date_format = "%Y%m%d_%H%M%S_%N"
+    }
+
+    String date_file = "the_date_file.txt"
+
+    command {
+        date +~{date_format} > ~{date_file}
+        cat ~{date_file}
+    }
+
+    # ------------------------------------------------
+    # Runtime settings:
+     runtime {
+         docker: "ubuntu:19.10"
+         memory: "512 MB"
+         disks: "local-disk 10 HDD"
+         bootDiskSizeGb: "15"
+         preemptible: 0
+         cpu: 1
+     }
+
+    output {
+        String timestamp_string   = read_string(date_file)
+    }
+}
+
+task ConvertFastaToOneLineSequences {
+    # ------------------------------------------------
+    # Input args:
+    input {
+        File reads_fasta
+
+        Int? mem_gb
+        Int? preemptible_attempts
+        Int? disk_space_gb
+        Int? cpu
+        Int? boot_disk_size_gb
+    }
+
+    # ------------------------------------------------
+    # Process input args:
+
+    String out_file_name = sub(reads_fasta, "\\.fasta$", "one_line.fasta")
+    String timing_output_file = "convert_fasta_to_one_line_sequences.timingInformation.txt"
+    Int split_size = 5400
+
+    # ------------------------------------------------
+    # Get machine settings:
+    Boolean use_ssd = false
+
+    Float input_files_size_gb = size(reads_fasta, "GiB")
+
+    # You may have to change the following two parameter values depending on the task requirements
+    Int default_ram_mb = 2048
+    Int default_disk_space_gb = ceil((input_files_size_gb * 2) + 1024)
+
+    Int default_boot_disk_size_gb = 15
+
+    # Mem is in units of GB but our command and memory runtime values are in MB
+    Int machine_mem = if defined(mem_gb) then mem_gb * 1024 else default_ram_mb
+
+    # ------------------------------------------------
+    # Run our command:
+    command <<<
+
+        set -e
+        startTime=`date +%s.%N`
+        echo "StartTime: $startTime" > ~{timing_output_file}
+
+        awk '{if(NR==1) {print $0} else {if($0 ~ /^>/) {print "\n"$0} else {printf $0}}}' ~{reads_fasta} > ~{out_file_name}
+
+        endTime=`date +%s.%N`
+        echo "EndTime: $endTime" >> ~{timing_output_file}
+
+        # Get and compute timing information:
+        set +e
+        elapsedTime=""
+        which bc &> /dev/null ; bcr=$?
+        which python3 &> /dev/null ; python3r=$?
+        which python &> /dev/null ; pythonr=$?
+        if [[ $bcr -eq 0 ]] ; then elapsedTime=`echo "scale=6;$endTime - $startTime" | bc`;
+        elif [[ $python3r -eq 0 ]] ; then elapsedTime=`python3 -c "print( $endTime - $startTime )"`;
+        elif [[ $pythonr -eq 0 ]] ; then elapsedTime=`python -c "print( $endTime - $startTime )"`;
+        fi
+        echo "Elapsed Time: $elapsedTime" >> ~{timing_output_file}
+    >>>
+
+    # ------------------------------------------------
+    # Runtime settings:
+     runtime {
+         docker: "ubuntu:19.10"
+         memory: machine_mem + " MB"
+         disks: "local-disk " + select_first([disk_space_gb, default_disk_space_gb]) + if use_ssd then " SSD" else " HDD"
+         bootDiskSizeGb: select_first([boot_disk_size_gb, default_boot_disk_size_gb])
+         preemptible: select_first([preemptible_attempts, 0])
+         cpu: select_first([cpu, 1])
+     }
+
+    # ------------------------------------------------
+    # Outputs:
+    output {
+      File one_line_fasta   = "${out_file_name}"
+      File timing_info      = "${timing_output_file}"
     }
 }
