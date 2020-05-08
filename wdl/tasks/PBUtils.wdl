@@ -101,14 +101,14 @@ task CCSWithReHeader {
         RuntimeAttr? runtime_attr_override
     }
 
-    Int disk_size = 2*ceil(size(subreads, "GB"))
+    Int disk_size = 3 * ceil(size(subreads, "GB"))
 
     command <<<
         set -euxo pipefail
 
         samtools view -H ~{subreads} > temp.txt
         cat ~{original_header_hd_line} temp.txt | sed '2d' > temp.header # essentially replace HD line of the split BAM with save_hd_line.txt
-        samtools reheader temp.header ~{subreads} > temp.bam
+        samtools reheader temp.header ~{subreads} | samtools view -h -o temp.bam - # the view operation is to ensure BAM compression
         mv temp.bam ~{subreads}
 
         ccs --min-passes ~{min_passes} \
@@ -128,7 +128,7 @@ task CCSWithReHeader {
     #########################
     RuntimeAttr default_attr = object {
         cpu_cores:          cpus,
-        mem_gb:             40,
+        mem_gb:             10,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
         preemptible_tries:  2,

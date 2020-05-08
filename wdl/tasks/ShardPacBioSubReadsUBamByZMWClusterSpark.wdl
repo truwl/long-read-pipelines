@@ -40,7 +40,7 @@ task CreateSparkIndex {
 
     String prefix = basename(input_ubam, ".bam")
 
-    Int disk_size = 50 + ceil(size(input_ubam, "GB")) # assumes the sbi index will be large
+    Int disk_size = 10 + ceil(size(input_ubam, "GB")) # assumes the sbi index will be large
 
     command <<<
         set -euo pipefail
@@ -71,7 +71,7 @@ task CreateSparkIndex {
     runtime {
         cpu:                    select_first([runtime_attr.cpu_cores,         default_attr.cpu_cores])
         memory:                 select_first([runtime_attr.mem_gb,            default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " +  select_first([runtime_attr.disk_gb,           default_attr.disk_gb]) + " HDD"
+        disks: "local-disk " +  select_first([runtime_attr.disk_gb,           default_attr.disk_gb]) + " LOCAL"
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
@@ -100,7 +100,7 @@ task SparkShard {
 
         mkdir -p split_dir
         gatk \
-            --java-options "-Xms350G -Xmx390G" \
+            --java-options "-Xms420G -Xmx440G" \
             ShardPacBioSubReadsUBamByZMWClusterSpark \
             -I ~{input_ubam} \
             --read-index ~{input_ubam_splittingindex} \
@@ -132,7 +132,7 @@ task SparkShard {
     #########################
     RuntimeAttr default_attr = object {
         cpu_cores:          96,
-        mem_gb:             400,
+        mem_gb:             450,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
         preemptible_tries:  0,
