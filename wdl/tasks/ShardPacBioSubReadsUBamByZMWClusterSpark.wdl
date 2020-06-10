@@ -91,16 +91,25 @@ task SparkShard {
         RuntimeAttr? runtime_attr_override
     }
 
-    Int disk_size = 3000
-
     String sparse_zmws_per_shards = if (defined(shard_size)) then "--shard-size ~{shard_size}" else " "
+
+    Int cpu_guess = 96
+    Int disk_size = if ( 600 < ceil(size(input_ubam, "GB")) ) then 3000 else 2250 # 8 vs 6 local SSDs
+
+    Int mem_guess = if ( 600 < ceil(size(input_ubam, "GB")) ) then 600 else 400
+
+    Int jvm_start_mem = ceil (0.85 * mem_guess)
+    Int jvm_max_mem   = ceil (0.90 * mem_guess)
+    String java_options = "\"-Xms" + jvm_start_mem + "G -Xmx" + jvm_max_mem + "G\""
+
+    Int spark_driver_mem = ceil (0.87 * mem_guess)
 
     command <<<
         set -euo pipefail
 
         mkdir -p split_dir
         gatk \
-            --java-options "-Xms420G -Xmx440G" \
+            --java-options ~{java_options} \
             ShardPacBioSubReadsUBamByZMWClusterSpark \
             -I ~{input_ubam} \
             --read-index ~{input_ubam_splittingindex} \
@@ -110,7 +119,7 @@ task SparkShard {
             --use-jdk-inflater \
             -- \
             --conf spark.master="local[*]" \
-            --conf spark.driver.memory=340g \
+            --conf spark.driver.memory=~{spark_driver_mem}g \
             --conf spark.memory.fraction=0.85 \
             --conf spark.memory.storageFraction=0.25
 
@@ -131,8 +140,8 @@ task SparkShard {
 
     #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          96,
-        mem_gb:             450,
+        cpu_cores:          cpu_guess,
+        mem_gb:             mem_guess,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
         preemptible_tries:  0,
