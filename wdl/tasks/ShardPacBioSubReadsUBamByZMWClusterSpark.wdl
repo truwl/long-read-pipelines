@@ -46,7 +46,7 @@ task CreateSparkIndex {
         set -euo pipefail
 
         gatk \
-            --java-options "-Xms35G -Xmx45G" \
+            --java-options "-Xms10G -Xmx18G" \
             CreateHadoopBamSplittingIndex \
             -I ~{input_ubam} \
             -O ~{prefix}.sbi \
@@ -60,7 +60,7 @@ task CreateSparkIndex {
     #########################
     RuntimeAttr default_attr = object {
         cpu_cores:          4,
-        mem_gb:             50,
+        mem_gb:             20,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
         preemptible_tries:  0,
