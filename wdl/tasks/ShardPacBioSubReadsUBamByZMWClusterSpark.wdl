@@ -3,25 +3,25 @@ version 1.0
 import "Structs.wdl"
 
 workflow ShardPacBioSubReadsUBamByZMWClusterSpark {
-	input {
-		File input_ubam
-		String output_prefix
+    input {
+        File input_ubam
+        String output_prefix
 
         Int? shard_size
-	}
+    }
 
     call CreateSparkIndex {
         input:
-        input_ubam = input_ubam
+            input_ubam = input_ubam
     }
 
-	call SparkShard {
-		input:
-		input_ubam = input_ubam,
-        input_ubam_splittingindex = CreateSparkIndex.spark_sbi_index,
-		split_prefix = output_prefix,
-        shard_size = shard_size
-	}
+    call SparkShard {
+        input:
+            input_ubam = input_ubam,
+            input_ubam_splittingindex = CreateSparkIndex.spark_sbi_index,
+            split_prefix = output_prefix,
+            shard_size = shard_size
+    }
 
     output {
         File spark_sbi_index = CreateSparkIndex.spark_sbi_index
@@ -80,7 +80,7 @@ task CreateSparkIndex {
 }
 
 task SparkShard {
-	input {
+    input {
         File input_ubam
         File input_ubam_splittingindex
 
