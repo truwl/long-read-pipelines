@@ -693,6 +693,7 @@ task MergeBams {
     input {
         Array[File] bams
         String prefix = "out"
+        Int? disk_size_estimate
 
         RuntimeAttr? runtime_attr_override
     }
@@ -700,9 +701,11 @@ task MergeBams {
     parameter_meta {
         bams:   "input array of BAMs to be merged"
         prefix: "[default-valued] prefix for output BAM"
+
+        disk_size_estimate: "[optional] an option to reduce time on PreparingJob when the input array is long (see https://tinyurl.com/y4eahlyd)"
     }
 
-    Int disk_size = 4*ceil(size(bams, "GB"))
+    Int disk_size = if defined(disk_size_estimate) then disk_size_estimate else 4*ceil(size(bams, "GB"))
 
     command <<<
         set -euxo pipefail

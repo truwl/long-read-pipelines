@@ -61,7 +61,7 @@ workflow PBCCSOnlySingleFlowcell {
         }
 
         # merge the corrected per-shard BAM/report into one, corresponding to one raw input BAM
-        call Utils.MergeBams as MergeChunks { input: bams = CCS.consensus, prefix = "~{SM}.~{ID}" }
+        call Utils.MergeBams as MergeChunks { input: bams = CCS.consensus, prefix = "~{SM}.~{ID}", disk_size_estimate = 3*ceil(size(subread_bam, "GB"))}
         call PB.MergeCCSReports as MergeCCSReports { input: reports = CCS.report }
     }
 

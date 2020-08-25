@@ -289,7 +289,11 @@ task MergeCCSReports {
         RuntimeAttr? runtime_attr_override
     }
 
-    Int disk_size = 2*ceil(size(reports, "GB")) + 1
+    # we do an educated-guess optimzation here: because when the input "reports" array is long,
+    # it takes a huge chunck of time to compute the disk space, we simply do an estimate
+    # (see https://tinyurl.com/y4eahlyd)
+    # Int disk_size = 2*ceil(size(reports, "GB")) + 1
+    Int disk_size = 2*ceil( length(reports) * size(reports[0], "GB") )
 
     command <<<
         set -euxo pipefail
