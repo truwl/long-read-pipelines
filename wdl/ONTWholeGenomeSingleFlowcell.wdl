@@ -8,6 +8,7 @@ import "tasks/CallSVs.wdl" as SV
 import "tasks/Figures.wdl" as FIG
 import "tasks/Finalize.wdl" as FF
 import "tasks/CallSmallVariants.wdl" as SMV
+import "tasks/Methylation.wdl" as Meth
 
 workflow ONTWholeGenomeSingleFlowcell {
     input {
@@ -61,6 +62,21 @@ workflow ONTWholeGenomeSingleFlowcell {
         }
 
         call Utils.MergeBams as MergeChunks { input: bams = AlignChunk.aligned_bam }
+
+        call Meth.Methylation {
+            input:
+                fast5s = read_lines(ListFast5s.manifest),
+                fastqs = read_lines(ListFastqs.manifest),
+                sequencing_summary = summary_file,
+
+                bam = MergeChunks.merged_bam,
+                bai = MergeChunks.merged_bai,
+
+                ref_fasta = ref_fasta,
+                ref_fai = ref_fasta_fai,
+
+                prefix = "~{SM}.~{ID}.methylation_freq"
+        }
 
         call AM.AlignedMetrics as PerFlowcellSubRunMetrics {
             input:
@@ -141,6 +157,11 @@ workflow ONTWholeGenomeSingleFlowcell {
             ref_dict          = ref_dict,
     }
 
+    if (length(Methylation.freq_tsv) > 1) {
+        call Meth.FreqMerge { input: freq_tsvs = Methylation.freq_tsv, prefix = "~{SM[0]}.~{ID[0]}.methylation_freq" }
+    }
+    File freq_tsv = select_first([ FreqMerge.freq_tsv , Methylation.freq_tsv[0] ])
+
     ##########
     # Finalize
     ##########
@@ -161,5 +182,11 @@ workflow ONTWholeGenomeSingleFlowcell {
         input:
             files = [ MergeRuns.merged_bam, MergeRuns.merged_bai ],
             outdir = outdir + "/" + DIR[0] + "/alignments"
+    }
+
+    call FF.FinalizeToDir as FinalizeMethylation {
+        input:
+            files = [ freq_tsv ],
+            outdir = outdir + "/" + DIR[0] + "/methylation"
     }
 }
