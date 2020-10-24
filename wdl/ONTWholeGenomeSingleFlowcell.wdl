@@ -75,7 +75,7 @@ workflow ONTWholeGenomeSingleFlowcell {
                 ref_fasta = ref_fasta,
                 ref_fai = ref_fasta_fai,
 
-                prefix = "~{SM}.~{ID}.methylation_freq"
+                prefix = "~{SM}.~{ID}.methylation"
         }
 
         call AM.AlignedMetrics as PerFlowcellSubRunMetrics {
@@ -158,7 +158,7 @@ workflow ONTWholeGenomeSingleFlowcell {
     }
 
     if (length(Methylation.freq_tsv) > 1) {
-        call Meth.FreqMerge { input: freq_tsvs = Methylation.freq_tsv, prefix = "~{SM[0]}.~{ID[0]}.methylation_freq" }
+        call Meth.FreqMerge { input: freq_tsvs = Methylation.freq_tsv, prefix = "~{SM[0]}.~{ID[0]}.methylation" }
     }
     File freq_tsv = select_first([ FreqMerge.freq_tsv , Methylation.freq_tsv[0] ])
 
