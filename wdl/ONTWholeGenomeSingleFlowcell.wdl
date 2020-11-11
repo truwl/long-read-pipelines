@@ -41,7 +41,7 @@ workflow ONTWholeGenomeSingleFlowcell {
     call ONT.FindSequencingSummaryFiles { input: gcs_input_dir = raw_reads_gcs_bucket }
 
     scatter (summary_file in FindSequencingSummaryFiles.summary_files) {
-        call ONT.ListFiles as ListFast5s { input: summary_file = summary_file, suffix = "fast5" }
+        #call ONT.ListFiles as ListFast5s { input: summary_file = summary_file, suffix = "fast5" }
         call ONT.ListFiles as ListFastqs { input: summary_file = summary_file, suffix = "fastq" }
 
         String SM  = sample_name
