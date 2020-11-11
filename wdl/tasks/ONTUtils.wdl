@@ -14,27 +14,29 @@ task FindSequencingSummaryFiles {
     command <<<
         for summary_file in $(gsutil ls ~{indir}/**sequencing_summary*.txt*)
         do
-            DIR=$(dirname $summary_file)
-            echo ${DIR}
+            echo $summary_file >> summaries.txt
 
-            gsutil ls ${DIR} | grep fastq_pass && gsutil ls ${DIR} | grep fast5_pass
-
-            if [ $? -eq 0 ]; then
-                FASTQ_COUNT=$(gsutil ls ${DIR}/fastq_pass/*.fastq* | wc -l)
-                FAST5_COUNT=$(gsutil ls ${DIR}/fast5_pass/*.fast5* | wc -l)
-
-                echo "${FASTQ_COUNT} ${FAST5_COUNT}"
-
-                if [ ${FASTQ_COUNT} -eq ${FAST5_COUNT} ]; then
-                    echo $summary_file >> summaries.txt
-                else
-                    echo "# fastq != # fast5.  Skipped."
-                fi
-            else
-                echo "No passing fastq and fast5 files.  Skipped."
-            fi
-
-            echo ""
+#            DIR=$(dirname $summary_file)
+#            echo ${DIR}
+#
+#            gsutil ls ${DIR} | grep fastq_pass && gsutil ls ${DIR} | grep fast5_pass
+#
+#            if [ $? -eq 0 ]; then
+#                FASTQ_COUNT=$(gsutil ls ${DIR}/fastq_pass/*.fastq* | wc -l)
+#                FAST5_COUNT=$(gsutil ls ${DIR}/fast5_pass/*.fast5* | wc -l)
+#
+#                echo "${FASTQ_COUNT} ${FAST5_COUNT}"
+#
+#                if [ ${FASTQ_COUNT} -eq ${FAST5_COUNT} ]; then
+#                    echo $summary_file >> summaries.txt
+#                else
+#                    echo "# fastq != # fast5.  Skipped."
+#                fi
+#            else
+#                echo "No passing fastq and fast5 files.  Skipped."
+#            fi
+#
+#            echo ""
         done
     >>>
 
