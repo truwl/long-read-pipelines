@@ -12,7 +12,14 @@ import "tasks/CallSmallVariants.wdl" as SMV
 workflow ONTWholeGenomeSingleFlowcell {
     input {
         String raw_reads_gcs_bucket
-        String? sample_name
+
+        String sample_name
+        String started = "2018-01-01T00:00:01.000001+00:00"
+        String instrument = "PC48A003"
+        String flow_cell_id = "unknown"
+        String position = "0U"
+        String protocol_group_id = "default"
+        String protocol_run_id = "d9f7497c-382d-9ee2-709f-9d1b560aecaf"
 
         File ref_fasta
         File ref_fasta_fai
@@ -31,20 +38,19 @@ workflow ONTWholeGenomeSingleFlowcell {
 
     String outdir = sub(gcs_out_root_dir, "/$", "")
 
-    call ONT.FindSequencingSummaryFiles { input: gcs_input_dir = raw_reads_gcs_bucket}
+    call ONT.FindSequencingSummaryFiles { input: gcs_input_dir = raw_reads_gcs_bucket }
 
     scatter (summary_file in FindSequencingSummaryFiles.summary_files) {
-        call ONT.GetRunInfo { input: summary_file = summary_file }
         call ONT.ListFiles as ListFast5s { input: summary_file = summary_file, suffix = "fast5" }
         call ONT.ListFiles as ListFastqs { input: summary_file = summary_file, suffix = "fastq" }
 
-        String SM  = select_first([sample_name, GetRunInfo.run_info["sample_id"]])
+        String SM  = sample_name
         String PL  = "ONT"
-        String PU  = GetRunInfo.run_info["instrument"]
-        String DT  = GetRunInfo.run_info["started"]
-        String ID  = GetRunInfo.run_info["flow_cell_id"] + "." + GetRunInfo.run_info["position"]
-        String DIR = GetRunInfo.run_info["protocol_group_id"] + "." + SM + "." + ID
-        String SID = ID + "." + sub(GetRunInfo.run_info["protocol_run_id"], "-.*", "")
+        String PU  = instrument
+        String DT  = started
+        String ID  = flow_cell_id + "." + position
+        String DIR = protocol_group_id + "." + SM + "." + ID
+        String SID = ID + "." + sub(protocol_run_id, "-.*", "")
         String RG = "@RG\\tID:~{SID}\\tSM:~{SM}\\tPL:~{PL}\\tPU:~{PU}\\tDT:~{DT}"
 
         call ONT.PartitionManifest as PartitionFast5Manifest { input: manifest = ListFast5s.manifest, N = 4  }
