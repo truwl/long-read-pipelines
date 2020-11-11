@@ -10,11 +10,13 @@ version 1.0
 ##########################################################################################
 
 import "Finalize.wdl" as FF
+import "Utils.wdl" as Utils
 
 workflow Guppy {
     input {
         String gcs_fast5_dir
         String config = "dna_r9.4.1_450bps_hac_prom.cfg"
+        Int? num_reads_per_chunk
     }
 
     call ListFast5Files {
@@ -22,14 +24,25 @@ workflow Guppy {
             gcs_fast5_dir = gcs_fast5_dir
     }
 
-    call Basecall {
-        input:
-           fast5_files = ListFast5Files.fast5_files,
-           config      = config
+    if (defined(num_reads_per_chunk) && num_reads_per_chunk < ListFast5Files.num_reads) {
+        call Utils.ChunkManifest {
+            input:
+                manifest = ListFast5Files.fast5_manifest,
+                manifest_lines_per_chunk = num_reads_per_chunk
+        }
+    }
+
+    Array[File] manifest_chunks = select_first([ChunkManifest.manifest_chunks, [ListFast5Files.fast5_mamifest]])
+    scatter (manifest_chunk in manifest_chunks) {
+        call Basecall {
+            input:
+               fast5_files = ListFast5Files.fast5_files,
+               config      = config
+        }
     }
 
     output  {
-        Array[File] output_files = Basecall.guppy_output_files
+        Array[File] output_files = flatten(Basecall.guppy_output_files)
     }
 }
 
@@ -45,7 +58,8 @@ task ListFast5Files {
     >>>
 
     output {
-        Array[File] fast5_files = read_lines("fast5_files.txt")
+        File fast5_manifest = "fast5_files.txt"
+        Int num_reads = len(read_lines("fast5_files.txt"))
     }
 
     runtime {

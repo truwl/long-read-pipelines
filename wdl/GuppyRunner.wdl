@@ -12,12 +12,14 @@ workflow GuppyRunner {
         String gcs_fast5_dir
         String config = "dna_r9.4.1_450bps_hac.cfg"
         String gcs_output_dir
+        Int? num_reads_per_chunk
     }
 
     call Guppy.Guppy {
         input:
-            gcs_fast5_dir = gcs_fast5_dir,
-            config        = config
+            gcs_fast5_dir       = gcs_fast5_dir,
+            config              = config,
+            num_reads_per_chunk = num_reads_per_chunk
     }
 
     call FF.FinalizeToDir {
