@@ -47,7 +47,8 @@ workflow PBCLRWholeGenome {
         call PB.PBIndex { input: bam = bam }
 
         call PB.GetRunInfo { input: bam = bam }
-        String ID = GetRunInfo.run_info["PU"]
+#        String ID = GetRunInfo.run_info["PU"]
+        String ID = basename(bam, ".bam")
 
         # break one raw BAM into fixed number of shards
         call PB.ShardLongReads { input: unaligned_bam = bam, unaligned_pbi = PBIndex.pbi, num_shards = num_shards }
