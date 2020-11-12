@@ -46,34 +46,34 @@ workflow PBCCSWholeGenome {
 
     # scatter over all sample BAMs
     scatter (bam in bams) {
-        File pbi = sub(bam, ".bam$", ".bam.pbi")
+        call PB.PBIndex { input: bam = bam }
 
         call PB.GetRunInfo { input: bam = bam }
         String ID = GetRunInfo.run_info["PU"]
 
         # break one raw BAM into fixed number of shards
-        call PB.ShardLongReads { input: unaligned_bam = bam, unaligned_pbi = pbi, num_shards = num_shards }
+        call PB.ShardLongReads { input: unaligned_bam = bam, unaligned_pbi = PBIndex.pbi, num_shards = num_shards }
 
         # then perform correction and alignment on each of the shard
         scatter (subreads in ShardLongReads.unmapped_shards) {
-            call PB.CCS { input: subreads = subreads }
+#            call PB.CCS { input: subreads = subreads }
 
-            if (extract_uncorrected_reads) {
-                call PB.ExtractUncorrectedReads { input: subreads = subreads, consensus = CCS.consensus }
-
-                call PB.Align as AlignUncorrected {
-                    input:
-                        bam         = ExtractUncorrectedReads.uncorrected,
-                        ref_fasta   = ref_map['fasta'],
-                        sample_name = participant_name,
-                        map_preset  = "SUBREAD",
-                        runtime_attr_override = { 'mem_gb': 64 }
-                }
-            }
+#            if (extract_uncorrected_reads) {
+#                call PB.ExtractUncorrectedReads { input: subreads = subreads, consensus = CCS.consensus }
+#
+#                call PB.Align as AlignUncorrected {
+#                    input:
+#                        bam         = ExtractUncorrectedReads.uncorrected,
+#                        ref_fasta   = ref_map['fasta'],
+#                        sample_name = participant_name,
+#                        map_preset  = "SUBREAD",
+#                        runtime_attr_override = { 'mem_gb': 64 }
+#                }
+#            }
 
             call PB.Align as AlignCorrected {
                 input:
-                    bam         = CCS.consensus,
+                    bam         = subreads,
                     ref_fasta   = ref_map['fasta'],
                     sample_name = participant_name,
                     map_preset  = "CCS"
@@ -83,13 +83,13 @@ workflow PBCCSWholeGenome {
         # merge the corrected per-shard BAM/report into one, corresponding to one raw input BAM
         call Utils.MergeBams as MergeCorrected { input: bams = AlignCorrected.aligned_bam, prefix = "~{participant_name}.~{ID}.corrected" }
 
-        if (length(select_all(AlignUncorrected.aligned_bam)) > 0) {
-            call Utils.MergeBams as MergeUncorrected {
-                input:
-                    bams = select_all(AlignUncorrected.aligned_bam),
-                    prefix = "~{participant_name}.~{ID}.uncorrected"
-            }
-        }
+#        if (length(select_all(AlignUncorrected.aligned_bam)) > 0) {
+#            call Utils.MergeBams as MergeUncorrected {
+#                input:
+#                    bams = select_all(AlignUncorrected.aligned_bam),
+#                    prefix = "~{participant_name}.~{ID}.uncorrected"
+#            }
+#        }
 
         # compute alignment metrics
         call AM.AlignedMetrics as PerFlowcellMetrics {
@@ -105,13 +105,13 @@ workflow PBCCSWholeGenome {
                 gcs_output_dir = outdir + "/metrics/per_flowcell/" + ID
         }
 
-        call PB.MergeCCSReports as MergeCCSReports { input: reports = CCS.report, prefix = "~{participant_name}.~{ID}" }
+#        call PB.MergeCCSReports as MergeCCSReports { input: reports = CCS.report, prefix = "~{participant_name}.~{ID}" }
 
-        call FF.FinalizeToDir as FinalizeCCSReport {
-            input:
-                files = [ MergeCCSReports.report ],
-                outdir = outdir + "/metrics/per_flowcell/" + ID + "/ccs_metrics"
-        }
+#        call FF.FinalizeToDir as FinalizeCCSReport {
+#            input:
+#                files = [ MergeCCSReports.report ],
+#                outdir = outdir + "/metrics/per_flowcell/" + ID + "/ccs_metrics"
+#        }
     }
 
     # gather across (potential multiple) input raw BAMs
@@ -119,23 +119,23 @@ workflow PBCCSWholeGenome {
         call Utils.MergeBams as MergeAllCorrected { input: bams = MergeCorrected.merged_bam, prefix = "~{participant_name}.corrected" }
         call PB.MergeCCSReports as MergeAllCCSReports { input: reports = MergeCCSReports.report }
 
-        if (length(select_all(MergeUncorrected.merged_bam)) > 0) {
-            call Utils.MergeBams as MergeAllUncorrected {
-                input:
-                    bams = select_all(MergeUncorrected.merged_bam),
-                    prefix = "~{participant_name}.uncorrected"
-            }
-        }
+#        if (length(select_all(MergeUncorrected.merged_bam)) > 0) {
+#            call Utils.MergeBams as MergeAllUncorrected {
+#                input:
+#                    bams = select_all(MergeUncorrected.merged_bam),
+#                    prefix = "~{participant_name}.uncorrected"
+#            }
+#        }
     }
 
     File ccs_bam = select_first([ MergeAllCorrected.merged_bam, MergeCorrected.merged_bam[0] ])
     File ccs_bai = select_first([ MergeAllCorrected.merged_bai, MergeCorrected.merged_bai[0] ])
-    File ccs_report = select_first([ MergeAllCCSReports.report, MergeCCSReports.report[0] ])
+#    File ccs_report = select_first([ MergeAllCCSReports.report, MergeCCSReports.report[0] ])
 
-    if (extract_uncorrected_reads) {
-        File? uncorrected_bam = select_first([ MergeAllUncorrected.merged_bam, MergeUncorrected.merged_bam[0] ])
-        File? uncorrected_bai = select_first([ MergeAllUncorrected.merged_bai, MergeUncorrected.merged_bai[0] ])
-    }
+#    if (extract_uncorrected_reads) {
+#        File? uncorrected_bam = select_first([ MergeAllUncorrected.merged_bam, MergeUncorrected.merged_bam[0] ])
+#        File? uncorrected_bai = select_first([ MergeAllUncorrected.merged_bai, MergeUncorrected.merged_bai[0] ])
+#    }
 
     # compute alignment metrics
     call AM.AlignedMetrics as PerSampleMetrics {
@@ -197,17 +197,17 @@ workflow PBCCSWholeGenome {
             outdir = outdir + "/alignments"
     }
 
-    call FF.FinalizeToDir as FinalizeMergedCCSReport {
-        input:
-            files = [ ccs_report ],
-            outdir = outdir + "/metrics/combined/" + participant_name + "/ccs_metrics"
-    }
+#    call FF.FinalizeToDir as FinalizeMergedCCSReport {
+#        input:
+#            files = [ ccs_report ],
+#            outdir = outdir + "/metrics/combined/" + participant_name + "/ccs_metrics"
+#    }
 
-    if (extract_uncorrected_reads) {
-        call FF.FinalizeToDir as FinalizeMergedUncorrectedRuns {
-            input:
-                files = select_all([ uncorrected_bam, uncorrected_bai ]),
-                outdir = outdir + "/alignments"
-        }
-    }
+#    if (extract_uncorrected_reads) {
+#        call FF.FinalizeToDir as FinalizeMergedUncorrectedRuns {
+#            input:
+#                files = select_all([ uncorrected_bam, uncorrected_bai ]),
+#                outdir = outdir + "/alignments"
+#        }
+#    }
 }

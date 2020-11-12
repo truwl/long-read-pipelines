@@ -44,13 +44,13 @@ workflow PBCLRWholeGenome {
 
     # scatter over all sample BAMs
     scatter (bam in bams) {
-        File pbi = sub(bam, ".bam$", ".bam.pbi")
+        call PB.PBIndex { input: bam = bam }
 
         call PB.GetRunInfo { input: bam = bam }
         String ID = GetRunInfo.run_info["PU"]
 
         # break one raw BAM into fixed number of shards
-        call PB.ShardLongReads { input: unaligned_bam = bam, unaligned_pbi = pbi, num_shards = num_shards }
+        call PB.ShardLongReads { input: unaligned_bam = bam, unaligned_pbi = PBIndex.pbi, num_shards = num_shards }
 
         # then perform correction and alignment on each of the shard
         scatter (subreads in ShardLongReads.unmapped_shards) {
