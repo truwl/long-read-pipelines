@@ -46,7 +46,7 @@ workflow PBCLRWholeGenome {
     scatter (bam in bams) {
         call PB.PBIndex { input: bam = bam }
 
-        call PB.GetRunInfo { input: bam = bam }
+#        call PB.GetRunInfo { input: bam = bam }
 #        String ID = GetRunInfo.run_info["PU"]
         String ID = basename(bam, ".bam")
 
