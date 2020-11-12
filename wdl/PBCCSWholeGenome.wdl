@@ -117,7 +117,7 @@ workflow PBCCSWholeGenome {
     # gather across (potential multiple) input raw BAMs
     if (length(bams) > 1) {
         call Utils.MergeBams as MergeAllCorrected { input: bams = MergeCorrected.merged_bam, prefix = "~{participant_name}.corrected" }
-        call PB.MergeCCSReports as MergeAllCCSReports { input: reports = MergeCCSReports.report }
+#        call PB.MergeCCSReports as MergeAllCCSReports { input: reports = MergeCCSReports.report }
 
 #        if (length(select_all(MergeUncorrected.merged_bam)) > 0) {
 #            call Utils.MergeBams as MergeAllUncorrected {
