@@ -33,7 +33,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         $CONDA/bin/conda create -y -n testenv
-        $CONDA/bin/conda activate testenv
+        source activate testenv
         $CONDA/bin/conda install -y -c bioconda womtool
         which womtool
 
