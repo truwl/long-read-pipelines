@@ -32,10 +32,11 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        $CONDA/bin/conda create -y -n testenv
-        source activate testenv
         $CONDA/bin/conda install -y -c bioconda womtool
-        which womtool
+
+    - name: Validate WDL syntax
+      run: |
+        find wdl/ -name '*.wdl' | xargs -t -L1 $CONDA/bin/womtool validate
 
     - name: Test with tox
       run: tox
