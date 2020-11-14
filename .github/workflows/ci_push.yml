@@ -36,7 +36,7 @@ jobs:
 
     - name: Validate WDL syntax
       run: |
-        find wdl/ -name '*.wdl' | xargs -t -L1 $CONDA/bin/womtool validate | grep -v 'Success'
+        find wdl/ -name '*.wdl' | xargs -t -L1 $CONDA/bin/womtool validate
 
     - name: Test with tox
       run: tox
