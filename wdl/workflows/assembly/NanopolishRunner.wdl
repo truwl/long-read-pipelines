@@ -1,0 +1,41 @@
+version 1.0
+
+##########################################################################################
+# Top level workflow runner for Nanopolish.wdl, see there for more documentation
+##########################################################################################
+
+import "../../tasks/polishing/Nanopolish.wdl" as Nanopolish
+import "../../tasks/utils/Finalize.wdl" as FF
+import "../../tasks/utils/Utils.wdl" as Utils
+
+workflow NanopolishRunner {
+    input {
+        String fast5_dir
+        File reads
+        File sequencing_summary
+        File draft_assembly_fasta
+        File output_dir
+        Int parallel_instances
+    }
+
+    call Utils.ConvertReads {
+        input:
+            reads = reads,
+            output_format = "fasta"
+    }
+
+    call Nanopolish.PolishAssembly {
+        input:
+            fast5_dir = fast5_dir,
+            reads_fasta = ConvertReads.converted_reads,
+            sequencing_summary =  sequencing_summary,
+            draft_assembly_fasta = draft_assembly_fasta,
+            parallel_instances = parallel_instances
+    }
+
+    call FF.FinalizeToDir {
+        input:
+            files = [PolishAssembly.polished_assembly],
+            outdir = output_dir
+    }
+}
