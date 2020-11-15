@@ -54,3 +54,7 @@ workflows:
   subclass: wdl
   primaryDescriptorPath: /wdl/workflows/pb/PBCCS.wdl
   testParameterFiles:
+- name: TestCromwell
+  subclass: wdl
+  primaryDescriptorPath: /wdl/workflows/test/TestCromwell.wdl
+  testParameterFiles:
