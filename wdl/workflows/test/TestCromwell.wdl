@@ -1,6 +1,6 @@
 version 1.0
 
-import "../../tasks/Structs.wdl"
+import "tasks/Structs.wdl"
 
 workflow TestCromwell {
     input {
