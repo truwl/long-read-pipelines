@@ -16,7 +16,7 @@ import "../../tasks/utils/Finalize.wdl" as FF
 import "../variants/CallSVs.wdl" as SV
 import "../variants/CallSmallVariants.wdl" as SMV
 
-workflow MakePacbioTestData {
+workflow MakePBTestData {
     input {
         File subreads_bam
         File subreads_pbi
