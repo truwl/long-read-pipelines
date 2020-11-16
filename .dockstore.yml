@@ -57,4 +57,4 @@ workflows:
 - name: TestCromwell
   subclass: wdl
   primaryDescriptorPath: /wdl/workflows/test/TestCromwell.wdl
-  testParameterFiles: /TestCromwell.json
+  testParameterFiles: /test/test_json/TestCromwell.json
