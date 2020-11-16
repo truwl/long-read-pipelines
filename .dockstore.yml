@@ -50,11 +50,11 @@ workflows:
   subclass: wdl
   primaryDescriptorPath: /wdl/workflows/pb/PBCCSWholeGenome.wdl
   testParameterFiles:
+- name: TestCromwell
+  subclass: wdl
+  primaryDescriptorPath: /wdl/workflows/test/TestCromwell.wdl
+  testParameterFiles:
 - name: PBCCS
   subclass: wdl
   primaryDescriptorPath: /wdl/workflows/pb/PBCCS.wdl
   testParameterFiles:
-- name: TestCromwell
-  subclass: wdl
-  primaryDescriptorPath: /wdl/workflows/test/TestCromwell.wdl
-  testParameterFiles: /test/test_json/TestCromwell.json
