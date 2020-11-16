@@ -7,7 +7,9 @@ workflow TestCromwell {
         String message
     }
 
-    call TestCromwellOnGCS { input: message = message }
+    call TestCromwellOnGCS {
+        input: message = message
+    }
 }
 
 task TestCromwellOnGCS {
