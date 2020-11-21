@@ -12,6 +12,7 @@ import "tasks/CallSmallVariants.wdl" as SMV
 workflow ONTWholeGenomeSingleFlowcell {
     input {
         String raw_reads_gcs_bucket
+        File ref_map_file
 
         String sample_name
         String started = "2018-01-01T00:00:01.000001+00:00"
@@ -21,27 +22,16 @@ workflow ONTWholeGenomeSingleFlowcell {
         String protocol_group_id = "default"
         String protocol_run_id = "d9f7497c-382d-9ee2-709f-9d1b560aecaf"
 
-        File ref_fasta
-        File ref_fasta_fai
-        File ref_dict
-
-        File tandem_repeat_bed
-        File ref_flat
-        File dbsnp_vcf
-        File dbsnp_tbi
-
-        String mt_chr_name
-        File metrics_locus
-
         String gcs_out_root_dir
     }
+
+    Map[String, String] ref_map = read_map(ref_map_file)
 
     String outdir = sub(gcs_out_root_dir, "/$", "")
 
     call ONT.FindSequencingSummaryFiles { input: gcs_input_dir = raw_reads_gcs_bucket }
 
     scatter (summary_file in FindSequencingSummaryFiles.summary_files) {
-        #call ONT.ListFiles as ListFast5s { input: summary_file = summary_file, suffix = "fast5" }
         call ONT.ListFiles as ListFastqs { input: summary_file = summary_file, suffix = "fastq" }
 
         String SM  = sample_name
@@ -60,7 +50,7 @@ workflow ONTWholeGenomeSingleFlowcell {
             call AR.Minimap2 as AlignChunk {
                 input:
                     reads      = read_lines(manifest_chunk),
-                    ref_fasta  = ref_fasta,
+                    ref_fasta  = ref_map['fasta'],
                     RG         = RG,
                     map_preset = "map-ont"
             }
@@ -72,12 +62,12 @@ workflow ONTWholeGenomeSingleFlowcell {
             input:
                 aligned_bam    = MergeChunks.merged_bam,
                 aligned_bai    = MergeChunks.merged_bai,
-                ref_fasta      = ref_fasta,
-                ref_dict       = ref_dict,
-                ref_flat       = ref_flat,
-                dbsnp_vcf      = dbsnp_vcf,
-                dbsnp_tbi      = dbsnp_tbi,
-                metrics_locus  = metrics_locus,
+                ref_fasta      = ref_map['fasta'],
+                ref_dict       = ref_map['dict'],
+                ref_flat       = ref_map['flat'],
+                dbsnp_vcf      = ref_map['dbsnp_vcf'],
+                dbsnp_tbi      = ref_map['dbsnp_tbi'],
+                metrics_locus  = ref_map['metrics_locus'],
                 per            = "flowcell",
                 type           = "subrun",
                 label          = SID,
@@ -102,12 +92,12 @@ workflow ONTWholeGenomeSingleFlowcell {
         input:
             aligned_bam    = MergeRuns.merged_bam,
             aligned_bai    = MergeRuns.merged_bai,
-            ref_fasta      = ref_fasta,
-            ref_dict       = ref_dict,
-            ref_flat       = ref_flat,
-            dbsnp_vcf      = dbsnp_vcf,
-            dbsnp_tbi      = dbsnp_tbi,
-            metrics_locus  = metrics_locus,
+            ref_fasta      = ref_map['fasta'],
+            ref_dict       = ref_map['dict'],
+            ref_flat       = ref_map['flat'],
+            dbsnp_vcf      = ref_map['dbsnp_vcf'],
+            dbsnp_tbi      = ref_map['dbsnp_tbi'],
+            metrics_locus  = ref_map['metrics_locus'],
             per            = "flowcell",
             type           = "run",
             label          = ID[0],
@@ -130,9 +120,9 @@ workflow ONTWholeGenomeSingleFlowcell {
             bam               = MergeRuns.merged_bam,
             bai               = MergeRuns.merged_bai,
 
-            ref_fasta         = ref_fasta,
-            ref_fasta_fai     = ref_fasta_fai,
-            tandem_repeat_bed = tandem_repeat_bed,
+            ref_fasta         = ref_map['fasta'],
+            ref_fasta_fai     = ref_map['fai'],
+            tandem_repeat_bed = ref_map['tandem_repeat_bed'],
 
             preset            = "ont"
     }
@@ -142,9 +132,9 @@ workflow ONTWholeGenomeSingleFlowcell {
             bam               = MergeRuns.merged_bam,
             bai               = MergeRuns.merged_bai,
 
-            ref_fasta         = ref_fasta,
-            ref_fasta_fai     = ref_fasta_fai,
-            ref_dict          = ref_dict,
+            ref_fasta         = ref_map['fasta'],
+            ref_fasta_fai     = ref_map['fai'],
+            ref_dict          = ref_map['dict'],
     }
 
     ##########
