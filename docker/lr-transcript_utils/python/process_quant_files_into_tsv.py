@@ -18,7 +18,7 @@ if len(sys.argv) < 2:
 d = sys.argv[1]
 
 # Some basic argument validation:
-if not os.path.ispath(d):
+if not os.path.isdir(d):
     print(f"Error: Given directory does not exist: {d}", file=sys.stderr)
     sys.exit(1)
 
@@ -51,7 +51,7 @@ with open(tsv_name, 'w') as out_file:
     print(f"Reading in sample data ({len(file_list)} files)...", file=sys.stderr)
     start_t = time.time()
     cur_t = start_t
-    i=0
+    i = 0
     step_height = 50
     for f in file_list:
         sample_name = f[-30:-9]
@@ -80,6 +80,4 @@ print('Loading in TSV file...', file=sys.stderr)
 adata = sc.read(tsv_name, ext='tsv').transpose()
 print('Saving anndata...', file=sys.stderr)
 adata.write(f"{base_name}.h5ad")
-print('Done!', file=sys.stderr)
-
-
+print('Done!', file=sys.stderr/)

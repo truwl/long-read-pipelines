@@ -26,52 +26,122 @@ workflow MasSeqQuantifyTranscripts {
         salmon_index_tar_gz : "[optional] SALMON index file corresponding to the transcripts FASTA file used to quantify the transcripts in the reads (TAR.GZ format).  Defaults to GENCODE v34."
     }
 
-    call PREPROCESS.SplitBamBySampleAndCellBarcodeTask as split_reads {
+#    ################################################################################
+#    # Split the array elements into individual files by sample and cell barcode:
+#    call PREPROCESS.SplitBamBySampleAndCellBarcodeTask as split_reads {
+#        input:
+#            aligned_annotated_bam = array_element_bam
+#    }
+#
+#    ################################################################################
+#    # Run FLAIR for transcript analysis:
+#    call FLAIR.FlairQuant as flair_quant {
+#        input:
+#            fasta_tar_gz = split_reads.fasta_tar_gz_out,
+#            transcript_isoforms_fasta = transcript_fasta
+#    }
+#
+#    ################################################################################
+#    # Run SALMON for single cell transcript analysis:
+#    # This is a BAD way to run SALMON.  Need to do this in blocks.
+#    scatter (reads_fasta in split_reads.sample_cb_fasta_files) {
+#
+#        call SALMON.RunSalmonQuantTask as salmon_quant {
+#            input:
+#            reads_fasta = reads_fasta,
+#            salmon_index_tar_gz = salmon_index_tar_gz,
+#            extra_args = "--fldMean 751 --fldSD 460 --minAssignedFrags 1"
+#        }
+#    }
+#
+#    call SALMON.ConvertQuantFilesToCountMatrix as make_salmon_count_matrix {
+#        input:
+#            quant_files = salmon_quant.quant_file
+#    }
+
+    ################################################################################
+    # Run SALMON for bulk transcript analysis:
+
+    call Utils.BamToFasta as CreateArrayElementFasta {
         input:
-            aligned_annotated_bam = array_element_bam
+            bam = array_element_bam
     }
 
-    call FLAIR.FlairQuant as flair_quant {
+    call SALMON.RunSalmonQuantTask as salmon_bulk_quant {
         input:
-            fasta_tar_gz = split_reads.fasta_tar_gz_out,
-            transcript_isoforms_fasta = transcript_fasta
-    }
-
-    # This is a BAD way to run SALMON.  Need to do this in blocks.
-    scatter (reads_fasta in split_reads.sample_cb_fasta_files) {
-
-        call SALMON.RunSalmonQuantTask as salmon_quant {
-            input:
-            reads_fasta = reads_fasta,
+            reads_fasta = CreateArrayElementFasta.fasta,
             salmon_index_tar_gz = salmon_index_tar_gz,
             extra_args = "--fldMean 751 --fldSD 460 --minAssignedFrags 1"
-        }
     }
 
-    call SALMON.ConvertQuantFilesToCountMatrix as make_salmon_count_matrix {
+    call SALMON.ConvertQuantFilesToCountMatrix as make_salmon_bulk_count_matrix {
         input:
-            quant_files = salmon_quant.quant_file
+            quant_files = [ salmon_bulk_quant.quant_file ]
     }
+
+#    ################################################################################
+#    # Run PB IsoSeq for transcript analysis:
+#    scatter (reads_fasta in split_reads.sample_cb_fasta_files) {
+#        call PB.RefineTranscriptReads {
+#            input:
+#                bam          = demux_bam,
+#                barcode_file = barcode_file,
+#                prefix       = "~{SM[0]}.~{ID[0]}.flnc"
+#        }
+#
+#        call PB.ClusterTranscripts {
+#            input:
+#                bam          = RefineTranscriptReads.refined_bam,
+#                prefix       = "~{SM[0]}.~{ID[0]}.clustered"
+#        }
+#
+#        call PB.Align as AlignTranscripts {
+#            input:
+#                bam          = ClusterTranscripts.clustered_bam,
+#                ref_fasta    = ref_fasta,
+#                sample_name  = SM[0],
+#                map_preset   = "ISOSEQ",
+#                prefix       = "~{SM[0]}.~{ID[0]}",
+#                runtime_attr_override = { "cpu_cores": 32 }
+#        }
+#
+#        call PB.CollapseTranscripts {
+#            input:
+#                bam          = AlignTranscripts.aligned_bam,
+#                prefix       = "~{SM[0]}.~{ID[0]}.collapsed"
+#        }
+#
+#        call TAMA.CollapseIsoforms {
+#            input:
+#                bam          = AlignTranscripts.aligned_bam,
+#                ref_fasta    = ref_fasta,
+#                prefix       = "~{SM[0]}.~{ID[0]}.collapsed"
+#        }
+#    }
 
     output {
-        File cell_fasta_gz                   = split_reads.fasta_tar_gz_out
+#        File cell_fasta_gz                   = split_reads.fasta_tar_gz_out
+#
+#        File flair_manifest                  = split_reads.flair_manifest
+#        File flair_count_matrix              = flair_quant.count_matrix
+#
+#        Array[File] salmon_quant_files       = salmon_quant.quant_file
+#        Array[File] salmon_cmd_infos         = salmon_quant.cmd_info
+#        Array[File] salmon_lib_format_counts = salmon_quant.lib_format_counts
+#        Array[File] salmon_ambig_infos       = salmon_quant.ambig_info
+#        Array[File] salmon_eq_classes        = salmon_quant.eq_classes
+#        Array[File] salmon_expected_biases   = salmon_quant.expected_bias
+#        Array[File] salmon_flds              = salmon_quant.fld
+#        Array[File] salmon_meta_infos        = salmon_quant.meta_info
+#        Array[File] salmon_observed_biases   = salmon_quant.observed_bias
+#        Array[File] salmon_observed_bias_3ps = salmon_quant.observed_bias_3p
+#        Array[File] salmon_logs              = salmon_quant.log
+#
+#        File salmon_single_cell_count_matrix_tsv         = make_salmon_count_matrix.count_matrix_tsv
+#        File salmon_single_cell_count_matrix_h5ad        = make_salmon_count_matrix.count_matrix_h5ad
 
-        File flair_manifest                  = split_reads.flair_manifest
-        File flair_count_matrix              = flair_quant.count_matrix
+        File salmon_bulk_count_matrix_tsv         = make_salmon_bulk_count_matrix.count_matrix_tsv
+        File salmon_bulk_count_matrix_h5ad        = make_salmon_bulk_count_matrix.count_matrix_h5ad
 
-        Array[File] salmon_quant_files       = salmon_quant.quant_file
-        Array[File] salmon_cmd_infos         = salmon_quant.cmd_info
-        Array[File] salmon_lib_format_counts = salmon_quant.lib_format_counts
-        Array[File] salmon_ambig_infos       = salmon_quant.ambig_info
-        Array[File] salmon_eq_classes        = salmon_quant.eq_classes
-        Array[File] salmon_expected_biases   = salmon_quant.expected_bias
-        Array[File] salmon_flds              = salmon_quant.fld
-        Array[File] salmon_meta_infos        = salmon_quant.meta_info
-        Array[File] salmon_observed_biases   = salmon_quant.observed_bias
-        Array[File] salmon_observed_bias_3ps = salmon_quant.observed_bias_3p
-        Array[File] salmon_logs              = salmon_quant.log
-
-        File salmon_count_matrix_tsv         = make_salmon_count_matrix.count_matrix_tsv
-        File salmon_count_matrix_h5ad        = make_salmon_count_matrix.count_matrix_h5ad
     }
 }
