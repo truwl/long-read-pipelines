@@ -28,6 +28,8 @@ file_list = glob.glob(os.path.join(d, '*quant.sf'))
 base_name = "differential_expression-known_isoforms"
 tsv_name = f"{base_name}.tsv"
 
+print(f"Detected Files: {', '.join(file_list)}")
+
 print("Getting list transcripts ...", file=sys.stderr)
 var_names = []
 field_names = []
