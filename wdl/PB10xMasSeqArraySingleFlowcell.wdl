@@ -152,6 +152,9 @@ workflow PB10xMasSeqSingleFlowcell {
         call Utils.MergeFiles as MergeArrayElementInitialSections_2 { input: files_to_merge = MergeArrayElementInitialSections_1.merged_file, merged_file_name = "EBR_initial_sections.txt" }
         call Utils.MergeFiles as MergeArrayElementFinalSections_2 { input: files_to_merge = MergeArrayElementFinalSections_1.merged_file, merged_file_name = "EBR_final_sections.txt" }
 
+        # Merge the 10x stats:
+        call Utils.MergeCountTsvFiles as Merge10XStats_1 { input: count_tsv_files = AnnotateArrayElements.stats }
+
         # Merge all Aligned array elements together for this Subread BAM:
         call Utils.MergeBams as MergeAlignedAnnoatatedArrayElementChunk { input: bams = AnnotateArrayElements.output_bam }
 
@@ -211,6 +214,9 @@ workflow PB10xMasSeqSingleFlowcell {
     call Utils.MergeFiles as MergeArrayElementMarkerAlignments_3 { input: files_to_merge = MergeArrayElementMarkerAlignments_2.merged_file, merged_file_name = "EBR_marker_alignments.txt" }
     call Utils.MergeFiles as MergeArrayElementInitialSections_3 { input: files_to_merge = MergeArrayElementInitialSections_2.merged_file, merged_file_name = "EBR_initial_sections.txt" }
     call Utils.MergeFiles as MergeArrayElementFinalSections_3 { input: files_to_merge = MergeArrayElementFinalSections_2.merged_file, merged_file_name = "EBR_final_sections.txt" }
+
+    # Merge the 10x merged stats:
+    call Utils.MergeCountTsvFiles as Merge10XStats_2 { input: count_tsv_files = Merge10XStats_1.merged_tsv }
 
     # Merge all array element bams together for this flowcell:
     call Utils.MergeBams as MergeAnnotatedAlignedArrayElements { input: bams = MergeAlignedAnnoatatedArrayElementChunk.merged_bam, prefix = "~{SM[0]}.~{ID[0]}" }
@@ -285,8 +291,7 @@ workflow PB10xMasSeqSingleFlowcell {
             ebr_final_section_alignments   = MergeArrayElementFinalSections_3.merged_file,
             ebr_bounds_file                = boundaries_file,
 
-            # TODO: Merge these 10x stats files first before generating the report!  These are not correct numbers!
-            ten_x_metrics_file             = AnnotateArrayElements.stats[0][0],
+            ten_x_metrics_file             = Merge10XStats_2.merged_tsv,
             rna_seq_metrics_file           = ArrayElementRnaSeqMetrics.rna_metrics,
 
             workflow_dot_file              = workflow_dot_file,
@@ -312,8 +317,7 @@ workflow PB10xMasSeqSingleFlowcell {
             ebr_final_section_alignments   = MergeArrayElementFinalSections_3.merged_file,
             ebr_bounds_file                = boundaries_file,
 
-            # TODO: Merge these 10x stats files first before generating the report!  These are not correct numbers!
-            ten_x_metrics_file             = AnnotateArrayElements.stats[0][0],
+            ten_x_metrics_file             = Merge10XStats_2.merged_tsv,
             rna_seq_metrics_file           = ArrayElementRnaSeqMetrics.rna_metrics,
 
             workflow_dot_file              = workflow_dot_file,

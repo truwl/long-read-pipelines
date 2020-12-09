@@ -929,8 +929,7 @@ task MergeCountTsvFiles {
     }
 
     output {
-        File subset_count_matrix_tsv = "count_matrix_subset_by_gene.tsv"
-        File subset_count_matrix_h5ad = "count_matrix_subset_by_gene.h5ad"
+        File merged_tsv = "merged_counts.tsv"
     }
 
     # Runtime requirements are tiny for this operation.
