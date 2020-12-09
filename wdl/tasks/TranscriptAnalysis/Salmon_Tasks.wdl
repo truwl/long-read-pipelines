@@ -89,7 +89,7 @@ task RunSalmonQuantTask {
     }
 }
 
-task ConvertQuantFilesToCountMatrix {
+task ConvertQuantFileToCountMatrix {
 
     meta {
         description : "Convert a set of files produced by `salmon quant` (via RunSalmonQuantTask) into a single count matrix containing all the data."
@@ -105,6 +105,9 @@ task ConvertQuantFilesToCountMatrix {
         quant_files : "Array of salmon quant.sf files to convert into a single count matrix."
     }
 
+    # Get the directory in which the first file lives:
+    File first_file = quant_files[0]
+
     # 5x the total size of all input files - probably overkill
     Int disk_size = 5*ceil(size(quant_files, "GB"))
 
@@ -113,7 +116,13 @@ task ConvertQuantFilesToCountMatrix {
         # This will combine all the counts into a single TSV file, then it will convert that TSV to
         # an h5ad file for convenience of importing into scanpy later.
 
-        /python_scripts/process_quant_files_into_tsv.py .
+        d=$(dirname ~{first_file})
+        echo "Reading quant files from: $d"
+
+        echo "Contents of $d :"
+        ls -la $d
+
+        /python_scripts/process_quant_files_into_tsv.py $d
     }
 
     output {

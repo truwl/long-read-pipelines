@@ -33,6 +33,7 @@ task SplitBamBySampleAndCellBarcodeTask {
 
     output {
         File flair_manifest = "${output_base_name}_flair_reads_manifest.tsv"
+        Array[File] sample_cell_barcode_fasta_files = glob("*.fasta")
         File fasta_tar_gz_out = "~{fasta_tar_gz_name}"
     }
 
