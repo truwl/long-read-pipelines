@@ -5,6 +5,7 @@ import "tasks/Utils.wdl" as Utils
 import "tasks/TranscriptAnalysis/Preprocessing_Tasks.wdl" as PREPROCESS
 import "tasks/TranscriptAnalysis/Salmon_Tasks.wdl" as SALMON
 import "tasks/TranscriptAnalysis/Flair_Tasks.wdl" as FLAIR
+import "tasks/TranscriptAnalysis/Postprocessing_Tasks.wdl" as POSTPROCESS
 
 workflow MasSeqQuantifyTranscripts {
 
@@ -78,6 +79,14 @@ workflow MasSeqQuantifyTranscripts {
             quant_files = [ salmon_bulk_quant.quant_file ]
     }
 
+    ################################################################################
+    # Get counts of CD45 transcripts from our bulk data:
+    call POSTPROCESS.SubsetCountsMatrixByGenes as create_cd45_gene_count_matrix {
+        input:
+            count_matrix_tsv = make_salmon_bulk_count_matrix.count_matrix_tsv,
+            gene_names = [ "PTPRC" ]
+    }
+
 #    ################################################################################
 #    # Run PB IsoSeq for transcript analysis:
 #    scatter (reads_fasta in split_reads.sample_cb_fasta_files) {
@@ -142,5 +151,7 @@ workflow MasSeqQuantifyTranscripts {
         File salmon_bulk_count_matrix_tsv         = make_salmon_bulk_count_matrix.count_matrix_tsv
         File salmon_bulk_count_matrix_h5ad        = make_salmon_bulk_count_matrix.count_matrix_h5ad
 
+        File cd45_count_matrix_tsv = create_cd45_gene_count_matrix.subset_count_matrix_tsv
+        File cd45_count_matrix_h5ad = create_cd45_gene_count_matrix.subset_count_matrix_h5ad
     }
 }
