@@ -12,7 +12,7 @@ import scanpy as sc
 
 # Right now we accept only 1 argument - the directory in which the quant files live:
 if len(sys.argv) < 3:
-    print(f"{sys.argv[0]} COUNTS_MATRIX_TSV GENENAME1 [GENENAME2 GENENAME3 ...]")
+    print(f"{sys.argv[0]} COUNTS_MATRIX_TSV GENENAME1 [GENENAME2 GENENAME3 ...]", file=sys.stderr)
     print(f"Error: you must specify at least one gene name.", file=sys.stderr) 
     sys.exit(1)
 
@@ -25,7 +25,7 @@ tsv_name = f"{base_name}.tsv"
 print(f"Count matrix file: {count_matrix}", file=sys.stderr)
 print(f"Selected genes: {', '.join(sys.argv[2:])}", file=sys.stderr)
 
-print(f"Getting gene-specific header...")
+print(f"Getting gene-specific header...", file=sys.stderr)
 with open(count_matrix, 'r') as tsvfile:
     tsvreader = csv.reader(tsvfile, delimiter="\t") 
     for row in tsvreader:

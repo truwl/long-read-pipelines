@@ -908,6 +908,42 @@ task MergeFiles {
     }
 }
 
+task MergeCountTsvFiles {
+    meta {
+        description : "Merge several identically formatted \"count\" TSV files.  Assumes files have 1 header row and all other rows are composed exclusively of integers and tab characters.  Merging performed by simple addition."
+        author : "Jonn Smith"
+        email : "jonn@broadinstitute.org"
+    }
+
+    input {
+        Array[File] count_tsv_files
+    }
+
+    # We're simply merging files, so we shouldn't need much space
+    # 1x for the files themselves
+    # 2x for the results and some wiggle room.
+    Int disk_size = 3 * ceil(size(count_tsv_files, "GB"))
+
+    command {
+        /python_scripts/merge_tsv_count_files.py ~{sep=' ' count_tsv_files}
+    }
+
+    output {
+        File subset_count_matrix_tsv = "count_matrix_subset_by_gene.tsv"
+        File subset_count_matrix_h5ad = "count_matrix_subset_by_gene.h5ad"
+    }
+
+    # Runtime requirements are tiny for this operation.
+    runtime {
+        docker: "us.gcr.io/broad-dsp-lrma/lr-transcript_utils:0.0.1"
+        memory: 2 + " GiB"
+        disks: "local-disk " + disk_size + " HDD"
+        boot_disk_gb: 10
+        preemptible: 0
+        cpu: 1
+    }
+}
+
 # Get the current timestamp as a string.
 # Levergaes the unix `date` command.
 # You can enter your own date format string.
