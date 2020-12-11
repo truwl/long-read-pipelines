@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import sys
 import time
 import re
@@ -27,13 +29,13 @@ if __name__ == '__main__':
     if not in_file_path.is_file():
         print(f"ERROR: Given input file is not a file.  Is it a directory?", file=sys.stderr)
         sys.exit(1)
-    if not (in_file_path.suffix == "sam" and in_file_path.suffix == "bam"):
+    if not (in_file_path.suffix == ".sam" or in_file_path.suffix == ".bam"):
         print(f"ERROR: Only bam/sam files are supported.", file=sys.stderr)
         sys.exit(1)
 
-    is_bam = in_file_path.endswith('.bam')
+    is_bam = in_file_path.suffix == '.bam'
 
-    out_file_name = in_file_path.stem + ".bam"
+    out_file_name = in_file_path.stem + ".with_zmws.bam"
 
     last_timing = time.time()
     read_count = 0
@@ -46,16 +48,16 @@ if __name__ == '__main__':
                     last_timing = current_time
 
                 try:
-                    zmw = read.get_tag(ZMW_TAG)
+                    zmw = int(read.get_tag(ZMW_TAG))
                 except KeyError:
                     try:
-                        zmw = zmw_regex.match(read.query_name).group(1)
+                        zmw = int(zmw_regex.match(read.query_name).group(1))
                     except AttributeError:
                         print(f"FATAL ERROR: Could not find ZMW in read {read_count}: {read.query_name}",
                               file=sys.stderr)
                         sys.exit(2)
 
-                read.set_tag(ZMW_TAG, read.get_tag(ZMW_TAG), value_type='i')
+                read.set_tag(ZMW_TAG, zmw, value_type='i')
                 output_file.write(read)
 
                 read_count += 1
