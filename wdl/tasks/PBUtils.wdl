@@ -153,6 +153,7 @@ task CCS {
         Boolean by_strand = false
 
         Int cpus = 4
+        Int preemptible_attempts = 2
 
         RuntimeAttr? runtime_attr_override
     }
@@ -189,7 +190,7 @@ task CCS {
         mem_gb:             8,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
-        preemptible_tries:  2,
+        preemptible_tries:  preemptible_attempts,
         max_retries:        1,
         docker:             "us.gcr.io/broad-dsp-lrma/lr-pb:0.1.21"
     }

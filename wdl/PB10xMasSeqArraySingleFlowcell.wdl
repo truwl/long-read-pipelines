@@ -92,7 +92,7 @@ workflow PB10xMasSeqSingleFlowcell {
         scatter (subreads in ShardLongReadsWithCopy.unmapped_shards) {
 
             # Call CCS on the subreads from the sequencer:
-            call PB.CCS { input: subreads = subreads }
+            call PB.CCS { input: subreads = subreads, preemptible_attempts = 0 }
 
             # Shard these reads even wider so we can make sure we don't run out of memory:
             call Utils.ShardLongReadsWithCopy as ShardCorrectedReads { input: unmapped_files = [ CCS.consensus ], num_reads_per_split = 20000 }
