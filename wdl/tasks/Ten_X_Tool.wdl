@@ -158,13 +158,6 @@ task AnnotateBarcodesAndUMIs {
 
         source activate 10x_tool
 
-        if ~{do_index} ; then
-            samtools index ~{bam_file}
-        fi
-
-        bwa index ~{head_adapter_fasta}
-        bwa index ~{tail_adapter_fasta}
-
         python /lrma/tool.py \
             --bam=~{bam_file} \
             --adapter=~{head_adapter_fasta} \
