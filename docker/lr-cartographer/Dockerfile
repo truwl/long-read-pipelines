@@ -1,5 +1,6 @@
 # Start with a good base python3 image:
-FROM ubuntu:19.10
+#FROM ubuntu:19.10
+FROM ubuntu:21.04
 MAINTAINER Jonn Smith <jonn@broadinstitute.org>
 
 # Make sure we don't need to interact with any package installations:
@@ -94,6 +95,7 @@ RUN git clone https://github.com/lh3/minimap2.git \
     && cd .. \
     && rm -rf minimap2
 
+RUN apt-get update
 RUN apt-get install -y libcurl4-openssl-dev libssl-dev
 RUN wget https://github.com/samtools/samtools/releases/download/1.10/samtools-1.10.tar.bz2 \
     && tar -xf samtools-1.10.tar.bz2 \
