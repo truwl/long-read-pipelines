@@ -49,6 +49,7 @@ class AlignmentAlgorithm(Enum):
     SMITH_WATERMAN = 3
     NEEDLEMAN_WUNSCH = 4
     BWA_MEM = 5
+    BWA_ALN = 6
 
 
 VALID_DNA_SEQUENCE_PATTERN = re.compile(r"^[ATGCNatgcn]+$")
@@ -1307,15 +1308,18 @@ def create_alignment_with_bwa_mem(read_sequence, target_sequences, minqual, minb
                 LOGGER.debug(l.rstrip())
 
         bwa_mem_args = ["/bwa-mem2-2.0pre2_x64-linux/bwa-mem2", "mem",
-                        "-a", "-S", "-P", "-k8",
-                        "-A", "1",
-                        "-B", "4",
-                        "-O", "6,6",
-                        "-E", "1,1",
-                        "-L", "5,5",
-                        "-U", "17",
-                        "-T", "30",
-                        "-c", "1000",
+                        "-a",                # Output all found alignments for single-end or unpaired paired-end reads. These alignments will be flagged as secondary alignments.
+                        "-S",                # skip mate rescue
+                        "-P",                # skip pairing; mate rescue performed unless -S also in use
+                        "-k8",               # minimum seed length
+                        "-A", "1",           # Matching score.
+                        "-B", "4",           # Mismatch penalty. The sequence error rate is approximately: {.75 * exp[-log(4) * B/A]}.
+                        "-O", "6,6",         # Gap open penalty.
+                        "-E", "1,1",         # gap extension penalty; a gap of size k cost '{-O} + {-E}*k'
+                        "-L", "5,5",         # penalty for 5'- and 3'-end clipping
+                        "-U", "17",          # penalty for an unpaired read pair
+                        "-T", "30",          # minimum score to output
+                        "-c", "1000",        # skip seeds with more than INT occurrences
                         "-t", str(threads),
                         "-o", out_file_name,
                         ref_file, seq_file]
@@ -1348,6 +1352,140 @@ def create_alignment_with_bwa_mem(read_sequence, target_sequences, minqual, minb
     finally:
         os.remove(ref_file)
         os.remove(seq_file)
+        try:
+            os.remove(out_file_name)
+            pass
+        except FileNotFoundError:
+            # If the alignment failed, we won't necessarily have an output file:
+            pass
+
+
+def create_alignment_with_bwa_aln(read_sequence, target_sequences, minqual, minbases, threads=1, log_spacing="    "):
+    """
+    Perform a BWA ALN alignment on
+
+    :param read_sequence: tesserae Sequence object against which to align all sequences in target_sequences
+    :param target_sequences: ordered list of tessereae Sequence objects to align.
+    :param minqual: Minimum quality for an alignment to be retained.
+    :param minbases: Minimum number of bases for an alignment to be retained.
+    :param threads: number of threads to use when aligning.
+    :param log_spacing: Spacing to precede any log statements.
+    :return: A list of TesseraeAlignmentResult objects.
+    """
+
+    out_sai_file = "tmp.sai"
+    out_file_name = "tmp.sam"
+
+    # Write sequences to tmp fasta file:
+    _, ref_file = tempfile.mkstemp()
+    _, seq_file = tempfile.mkstemp()
+    try:
+        LOGGER.debug("%sCreating tmp \"reference\" fasta file: %s", log_spacing, ref_file)
+        with open(ref_file, "w", encoding="ascii") as tmp:
+            tmp.write(f">{read_sequence.name}\n")
+            tmp.write(f"{read_sequence.sequence}\n")
+
+        bwa_index_args = ["/bwa/bwa", "index", ref_file]
+        LOGGER.debug(
+            "%sRunning BWA Index on tmp file (%s): %s", log_spacing, ref_file, " ".join(bwa_index_args)
+        )
+        _ = subprocess.run(bwa_index_args, capture_output=True, check=True)
+
+        LOGGER.debug("%sCreating tmp known segment \"read\" fasta file: %s", log_spacing, seq_file)
+        seen_targets = set()
+        with open(seq_file, "w", encoding="ascii") as tmp:
+            for t in target_sequences:
+                # We don't need to explicitly align reverse-complemented sequences here:
+                if t.name.endswith(RC_READ_NAME_IDENTIFIER):
+                    continue
+                elif t.name not in seen_targets:
+                    tmp.write(f">{t.name}\n")
+                    tmp.write(f"{t.sequence}\n")
+                    seen_targets.add(t.name)
+
+        LOGGER.debug("Contents of tmp \"reference\" fasta file:")
+        with open(ref_file, "r") as f:
+            for l in f.readlines():
+                LOGGER.debug(l.rstrip())
+
+        LOGGER.debug("Contents of known segment \"read\" fasta file:")
+        with open(seq_file, "r") as f:
+            for l in f.readlines():
+                LOGGER.debug(l.rstrip())
+
+        # Run the alignment:
+        bwa_aln_args = [
+            "/bwa/bwa", "aln",
+            "-n 0.04",               # max #diff (int) or missing prob under 0.02 err rate (float) [0.04]
+            "-o 1",                  # maximum number or fraction of gap opens [1]
+            "-e -1",                 # maximum number of gap extensions, -1 for disabling long gaps [-1]
+            "-i 1",                  # do not put an indel within INT bp towards the ends [5]
+            "-d 10",                 # maximum occurrences for extending a long deletion [10]
+            "-l 8",                  # seed length [32]
+            "-k 2",                  # maximum differences in the seed [2]
+            "-M 3",                  # mismatch penalty [3]
+            "-O 11",                 # gap open penalty [11]
+            "-E 4",                  # gap extension penalty [4]
+            "-R 30",                 # stop searching when there are >INT equally best hits
+            "-q 0",                  # quality threshold for read trimming down to 35bp [0]
+            "-t", str(threads),
+            "-f", out_sai_file,
+            ref_file,
+            seq_file
+        ]
+
+        LOGGER.debug(
+            "%sRunning BWA ALN on tmp file (%s): %s", log_spacing, ref_file, " ".join(bwa_aln_args)
+        )
+        subprocess.run(bwa_aln_args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=True, text=True)
+
+        # Convert the alignment to sam file:
+        bwa_samse_args = [
+            "/bwa/bwa", "samse",
+            f"-n {len(target_sequences)}",  # Maximum number of alignments to output in the XA tag for
+                                            # reads paired properly. If a read has more than INT hits, the
+                                            # XA tag will not be written. [3]
+            f"-f{out_file_name}",
+            ref_file,
+            out_sai_file,
+            seq_file
+        ]
+
+        LOGGER.debug(
+            f"{log_spacing}Running BWA SAMSE on tmp SAI file ({out_sai_file}): {' '.join(bwa_samse_args)}"
+        )
+        completed_process = subprocess.run(bwa_samse_args,
+                                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=True, text=True)
+
+        if LOGGER.isEnabledFor(logging.DEBUG):
+            LOGGER.debug("BWA ALN output:")
+            for l in completed_process.stdout.split("\n"):
+                LOGGER.debug(l)
+
+            with open(out_file_name, 'rb') as f:
+                LOGGER.debug("=" * 80)
+                LOGGER.debug("Raw BWA ALN Alignment:")
+                for line in f.readlines():
+                    LOGGER.debug("%s", line.decode("ascii").rstrip())
+                LOGGER.debug("=" * 80)
+
+        return get_processed_results_from_bwa_aln_file(out_file_name, minqual, minbases)
+
+    except subprocess.CalledProcessError as e:
+        LOGGER.error("Could not align with BWA ALN!")
+        LOGGER.error("Stdout: %s", e.stdout.decode("utf-8"))
+        LOGGER.error("Stderr: %s", e.stderr.decode("utf-8"))
+        raise e
+
+    finally:
+        os.remove(ref_file)
+        os.remove(seq_file)
+        try:
+            os.remove(out_sai_file)
+            pass
+        except FileNotFoundError:
+            # If the alignment failed, we won't necessarily have an output file:
+            pass
         try:
             os.remove(out_file_name)
             pass
@@ -1501,6 +1639,200 @@ def get_processed_results_from_bwa_mem_file(file_path, minqual, minbases):
     return processed_results
 
 
+def parse_cigar_string_to_tuples(cigar_string):
+    """
+    Parse the given cigar string into a list of cigar tuples.
+    :param cigar_string: String containing CIGAR information.
+    :return: Tuple of cigar tuples corresponding to the given CIGAR string.
+    """
+    # This is not very pythonic and I don't know how to fix it offhand...
+    cigar_tuple_list = []
+    buf = []
+    for c in cigar_string:
+        # Still in the number portion of the cigar element:
+        v = ord(c)
+        if 47 < v < 58:
+            buf.append(c)
+        else:
+            # Now we're at the "string" portion:
+            if v == ord('M'):
+                v = pysam.CMATCH
+            elif v == ord('I'):
+                v = pysam.CINS
+            elif v == ord('D'):
+                v = pysam.CDEL
+            elif v == ord('N'):
+                v = pysam.CREF_SKIP
+            elif v == ord('S'):
+                v = pysam.CSOFT_CLIP
+            elif v == ord('H'):
+                v = pysam.CHARD_CLIP
+            elif v == ord('P'):
+                v = pysam.CPAD
+            elif v == ord('='):
+                v = pysam.CEQUAL
+            elif v == ord('X'):
+                v = pysam.CDIFF
+            elif v == ord('B'):
+                v = pysam.CBACK
+            else:
+                raise KeyError(f"Error: No such cigar element: {c}")
+
+            cigar_tuple_list.append((v, int("".join(buf))))
+            buf = []
+
+    return tuple(cigar_tuple_list)
+
+
+def get_processed_results_from_bwa_aln_file(file_path, minqual, minbases):
+    """
+    Ingests the given file and creates raw alignments from it.
+    This method is VERY similar to the BWA MEM equivalent, but with an epilog to handle XA tags for each read.
+
+    :param file_path: Path to the sam file of a BWA MEM run.
+    :param minqual: Minimum quality for an alignment to be retained.
+    :param minbases: Minimum number of bases for an alignment to be retained.
+    :return: A list of ProcessedAlignmentResult objects.
+    """
+
+    processed_results = []
+
+    # Only primary hits will have sequence information with them so we have to
+    # Read it off first.  There shouldn't be very many reads, so this is a little slow, but should be OK.
+    read_seqs = dict()
+    with pysam.AlignmentFile(file_path, 'r', check_sq=False) as f:
+        for read in f.fetch(until_eof=True):
+            if read.query_sequence:
+                read_seqs[read.query_name] = read.query_sequence
+
+    with pysam.AlignmentFile(file_path, 'r', check_sq=False) as f:
+        for read in f.fetch(until_eof=True):
+
+            if read.is_unmapped:
+                continue
+
+            seq_name = read.query_name
+            if read.is_reverse:
+                seq_name = seq_name + RC_READ_NAME_IDENTIFIER
+
+            bases = read_seqs[read.query_name]
+
+            template_length = read.infer_read_length()
+            qual_pl = get_qual_pl(read.get_tag("NM"), template_length)
+
+            # Get the leading and trailing clips so we can remove them from the aligned string:
+            leading_clips = 0
+            for e in read.cigartuples:
+                if e[0] == pysam.CSOFT_CLIP or e[0] == pysam.CHARD_CLIP:
+                    leading_clips += e[1]
+                else:
+                    break
+
+            trailing_clips = 0
+            for e in read.cigartuples[::-1]:
+                if e[0] == pysam.CSOFT_CLIP or e[0] == pysam.CHARD_CLIP:
+                    trailing_clips += e[1]
+                else:
+                    break
+
+            # Note - must adjust ref start/end pos to align properly with conventions from other aligners
+            #        (other aligner conventions: 1-based coordinates, inclusive end positions)
+            p = ProcessedAlignmentResult(
+                seq_name, bases, leading_clips, len(bases)-trailing_clips-1,
+                int(read.reference_start), int(read.reference_end),
+                template_length, tuple(read.cigartuples), qual_pl
+            )
+
+            # Check against thresholds to make sure we should report the alignment:
+            if qual_pl < minqual or template_length < minbases:
+                if qual_pl < minqual and template_length < minbases:
+                    reason_string = f"qual too low ({qual_pl} < {minqual}) " \
+                                    f"AND aligment too short ({template_length} < {minbases})"
+                elif template_length < minbases:
+                    reason_string = f"aligment too short ({template_length} < {minbases})"
+                else:
+                    reason_string = f"qual too low ({qual_pl} < {minqual})"
+
+                LOGGER.debug("Target does not pass threshold: %s: %s (%s)", seq_name, reason_string, p)
+            else:
+                processed_results.append(p)
+
+            # Process the XA tags:
+            for xa_alignment_result in process_xa_tags(read, read_seqs):
+                processed_results.append(xa_alignment_result)
+
+    # Sort by the order in which they appear in the read.
+    # This is _VERY_IMPORTANT_ for finding the ordered regions in a following step.
+    processed_results.sort(key=lambda x: x.read_start_pos)
+
+    for r in processed_results:
+        LOGGER.debug("    %s", r)
+
+    return processed_results
+
+
+def process_xa_tags(read, read_seqs):
+    xa_processed_reads = []
+    try:
+        # split the XA tags by delimiters:
+        alternate_alignments = read.get_tag("XA").split(';')
+        for xa_alignment_string in alternate_alignments:
+            if len(xa_alignment_string) == 0:
+                continue
+
+            LOGGER.debug("XA Alignment: %s", xa_alignment_string)
+
+            # Parse the data into an aligned segment object:
+            ref_name, pos, cigar, edit_dist = xa_alignment_string.split(',')
+            pos = int(pos)
+            edit_dist = int(edit_dist)
+            seq_name = read.query_name
+
+            xa_read = pysam.AlignedSegment()
+            xa_read.query_name = seq_name
+            xa_read.query_sequence = read_seqs[seq_name]
+            xa_read.is_reverse = (pos < 0)
+            xa_read.reference_start = pos if pos >= 0 else -pos
+            xa_read.cigartuples = parse_cigar_string_to_tuples(cigar)
+            xa_read.set_tag("NM", edit_dist, value_type='i')
+
+            if pos < 0:
+                seq_name = seq_name + RC_READ_NAME_IDENTIFIER
+
+            template_length = xa_read.infer_read_length()
+            qual_pl = get_qual_pl(edit_dist, template_length)
+
+            # Get the leading and trailing clips so we can remove them from the aligned string:
+            leading_clips = 0
+            for e in xa_read.cigartuples:
+                if e[0] == pysam.CSOFT_CLIP or e[0] == pysam.CHARD_CLIP:
+                    leading_clips += e[1]
+                else:
+                    break
+
+            trailing_clips = 0
+            for e in xa_read.cigartuples[::-1]:
+                if e[0] == pysam.CSOFT_CLIP or e[0] == pysam.CHARD_CLIP:
+                    trailing_clips += e[1]
+                else:
+                    break
+
+            # Note - must adjust ref start/end pos to align properly with conventions from other aligners
+            #        (other aligner conventions: 1-based coordinates, inclusive end positions)
+            p = ProcessedAlignmentResult(
+                seq_name, xa_read.query_sequence, leading_clips, len(xa_read.query_sequence) - trailing_clips - 1,
+                int(xa_read.reference_start), int(xa_read.reference_end),
+                template_length, tuple(xa_read.cigartuples), qual_pl
+            )
+            LOGGER.debug(f"Adding: {p}")
+            xa_processed_reads.append(p)
+
+    except KeyError:
+        return []
+
+    return xa_processed_reads
+
+
 def get_raw_results_from_mosaic_aligner_file(file_path="align.txt"):
     """
     Ingests the given file and creates raw alignments from it.
@@ -1557,6 +1889,17 @@ def align_sequences(read_sequence, target_sequences, minqual, minbases,
     if alignment_type == AlignmentAlgorithm.BWA_MEM:
         start_time = time.time()
         processed_results = create_alignment_with_bwa_mem(read_sequence, target_sequences, minqual, minbases, threads=threads)
+        end_time = time.time()
+        LOGGER.info("%sCreated %d Alignments.  Alignment took %fs", log_spacing, len(processed_results),
+                    end_time - start_time)
+
+        query_result = TesseraeAlignmentResult(read_sequence.name, read_sequence.sequence, 0, len(read_sequence.sequence))
+        return processed_results, query_result
+
+    # BWA ALN Alignments are sufficiently different that we have to handle them separately:
+    if alignment_type == AlignmentAlgorithm.BWA_ALN:
+        start_time = time.time()
+        processed_results = create_alignment_with_bwa_aln(read_sequence, target_sequences, minqual, minbases, threads=threads)
         end_time = time.time()
         LOGGER.info("%sCreated %d Alignments.  Alignment took %fs", log_spacing, len(processed_results),
                     end_time - start_time)

@@ -17,6 +17,8 @@ task ExtractBoundedReadSectionsTask {
         File segments_fasta
         File boundaries_file
 
+        String aligner = "BWA_MEM"
+
         Int? max_read_length
         Float? min_qual
         Int? min_bases
@@ -34,6 +36,8 @@ task ExtractBoundedReadSectionsTask {
         reads_file : "SAM/BAM/FASTA/FASTQ file containing reads for which to determine the layout."
         segments_fasta : "FASTA file containing unique segments for which to search in the given BAM files.   These segments are used as delimiters in the reads.  Read splitting uses these delimiters and the boundaries file."
         boundaries_file : "Text file containing two comma-separated segment names from the segments_fasta on each line.  These entries define delimited sections to be extracted from the reads and treated as individual array elements."
+
+        aligner : "[optional] The alignment method to use to find the bounded regions (TESSERAE, MOSAIC_ALIGNER, SMITH_WATERMAN, NEEDLEMAN_WUNSCH, BWA_MEM, BWA_ALN) (Default: BWA_MEM)"
 
         max_read_length : "[optional] The read length beyond which a read will not be processed."
         min_qual : "[optional] Minimum quality for good alignment."
@@ -108,7 +112,7 @@ task ExtractBoundedReadSectionsTask {
             ~{min_bases_arg}~{default="" sep=" --minbases " min_qual} \
             ~{prec_known_arg}~{default="" sep=" --prec_known " prec_known} \
             ~{prec_unknown_arg}~{default="" sep=" --prec_unknown " prec_unknown} \
-            --aligner BWA_MEM \
+            --aligner ~{aligner} \
             2>&1 | tee ~{log_file_name}
 
         endTime=`date +%s.%N`

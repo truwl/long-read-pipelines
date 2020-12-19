@@ -154,6 +154,7 @@ task CCS {
 
         Int cpus = 4
         Int preemptible_attempts = 2
+        Int mem_gb = 8
 
         RuntimeAttr? runtime_attr_override
     }
@@ -187,7 +188,7 @@ task CCS {
     #########################
     RuntimeAttr default_attr = object {
         cpu_cores:          cpus,
-        mem_gb:             8,
+        mem_gb:             mem_gb,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
         preemptible_tries:  preemptible_attempts,
