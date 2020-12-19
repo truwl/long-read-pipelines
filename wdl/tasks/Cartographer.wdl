@@ -53,7 +53,7 @@ task ExtractBoundedReadSectionsTask {
     }
 
     # Docker image:
-    String docker_image = "us.gcr.io/broad-dsp-lrma/lr-cartographer:0.0.1"
+    String docker_image = "us.gcr.io/broad-dsp-lrma/lr-cartographer:0.0.2"
 
     # ------------------------------------------------
     # Process input args:
