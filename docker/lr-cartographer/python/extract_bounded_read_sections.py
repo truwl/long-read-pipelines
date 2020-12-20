@@ -1622,7 +1622,7 @@ def get_processed_results_from_bwa_mem_file(file_path, minqual, minbases):
             #        (other aligner conventions: 1-based coordinates, inclusive end positions)
             p = ProcessedAlignmentResult(
                 seq_name, bases, leading_clips, len(bases)-trailing_clips-1,
-                int(read.reference_start), int(read.reference_end),
+                int(read.reference_start), int(read.reference_end-1),
                 template_length, tuple(read.cigartuples), qual_pl
             )
 
