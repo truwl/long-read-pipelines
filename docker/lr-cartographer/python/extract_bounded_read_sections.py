@@ -114,6 +114,12 @@ class ReadFile:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self._file_object.close()
 
+    def is_sam(self):
+        """
+        :return: True iff this file is a sam/bam file.
+        """
+        return self._is_alignment_file
+
     def get_reads(self):
         """
         Generator function to yield a Sequence object for every read in the
@@ -1056,8 +1062,9 @@ def extract_read_sections(args):
                                  spacing_one)
 
                     # Create a position map so we can get real read positions from teh alignment string positions:
-                    if alignment_algorithm == AlignmentAlgorithm.BWA_MEM:
-                        # We don't need to adjust the positions at all if we're using the BWA aligner:
+                    if alignment_algorithm == AlignmentAlgorithm.BWA_MEM or \
+                            alignment_algorithm == AlignmentAlgorithm.BWA_ALN:
+                        # We don't need to adjust the positions at all if we're using the BWA aligners:
                         alignment_read_pos_map = IdentityMap()
                     else:
                         alignment_read_pos_map = create_alignment_to_base_map(query_result.alignment_string)
@@ -1140,6 +1147,10 @@ def write_marker_alignments_to_output_file(out_file, read_name, alignments, alig
     if len(alignments) > 0:
         out_file.write(read_name)
         for a in alignments:
+            LOGGER.debug(f"a.seq_name = {a.seq_name}")
+            LOGGER.debug(f"a.read_start_pos = {a.read_start_pos}")
+            LOGGER.debug(f"a.read_end_pos = {a.read_end_pos}")
+            LOGGER.debug(f"a.overall_quality = {a.overall_quality}")
             out_file.write(f"\t{a.seq_name}:"
                            f"{align_pos_read_pos_map[a.read_start_pos]}"
                            f"-{align_pos_read_pos_map[a.read_end_pos]}"
@@ -1419,13 +1430,13 @@ def create_alignment_with_bwa_aln(read_sequence, target_sequences, minqual, minb
             "-n 0.04",               # max #diff (int) or missing prob under 0.02 err rate (float) [0.04]
             "-o 1",                  # maximum number or fraction of gap opens [1]
             "-e -1",                 # maximum number of gap extensions, -1 for disabling long gaps [-1]
-            "-i 1",                  # do not put an indel within INT bp towards the ends [5]
             "-d 10",                 # maximum occurrences for extending a long deletion [10]
-            "-l 8",                  # seed length [32]
             "-k 2",                  # maximum differences in the seed [2]
             "-M 3",                  # mismatch penalty [3]
             "-O 11",                 # gap open penalty [11]
             "-E 4",                  # gap extension penalty [4]
+            "-l 8",                  # seed length [32]
+            "-i 1",                  # do not put an indel within INT bp towards the ends [5]
             "-R 30",                 # stop searching when there are >INT equally best hits
             "-q 0",                  # quality threshold for read trimming down to 35bp [0]
             "-t", str(threads),
@@ -1735,31 +1746,36 @@ def get_processed_results_from_bwa_aln_file(file_path, minqual, minbases):
                 else:
                     break
 
+            # Make a list of candidate read alignments so we can filter them all later:
+            candidate_alignments = []
+
             # Note - must adjust ref start/end pos to align properly with conventions from other aligners
             #        (other aligner conventions: 1-based coordinates, inclusive end positions)
             p = ProcessedAlignmentResult(
                 seq_name, bases, leading_clips, len(bases)-trailing_clips-1,
-                int(read.reference_start), int(read.reference_end),
+                int(read.reference_start), int(read.reference_end-1),
                 template_length, tuple(read.cigartuples), qual_pl
             )
+            candidate_alignments.append(p)
 
-            # Check against thresholds to make sure we should report the alignment:
-            if qual_pl < minqual or template_length < minbases:
-                if qual_pl < minqual and template_length < minbases:
-                    reason_string = f"qual too low ({qual_pl} < {minqual}) " \
-                                    f"AND aligment too short ({template_length} < {minbases})"
-                elif template_length < minbases:
-                    reason_string = f"aligment too short ({template_length} < {minbases})"
+            # Get all XA alignments as well:
+            candidate_alignments.extend(process_xa_tags(read, read_seqs))
+
+            # Process all alignments with the same rules:
+            for p in candidate_alignments:
+                # Check against thresholds to make sure we should report the alignment:
+                if p.overall_quality < minqual or p.template_length < minbases:
+                    if p.overall_quality < minqual and p.template_length < minbases:
+                        reason_string = f"qual too low ({p.overall_quality} < {minqual}) " \
+                                        f"AND aligment too short ({p.template_length} < {minbases})"
+                    elif p.template_length < minbases:
+                        reason_string = f"aligment too short ({p.template_length} < {minbases})"
+                    else:
+                        reason_string = f"qual too low ({p.overall_quality} < {minqual})"
+
+                    LOGGER.debug("Target does not pass threshold: %s: %s (%s)", p.seq_name, reason_string, p)
                 else:
-                    reason_string = f"qual too low ({qual_pl} < {minqual})"
-
-                LOGGER.debug("Target does not pass threshold: %s: %s (%s)", seq_name, reason_string, p)
-            else:
-                processed_results.append(p)
-
-            # Process the XA tags:
-            for xa_alignment_result in process_xa_tags(read, read_seqs):
-                processed_results.append(xa_alignment_result)
+                    processed_results.append(p)
 
     # Sort by the order in which they appear in the read.
     # This is _VERY_IMPORTANT_ for finding the ordered regions in a following step.
@@ -1821,7 +1837,7 @@ def process_xa_tags(read, read_seqs):
             #        (other aligner conventions: 1-based coordinates, inclusive end positions)
             p = ProcessedAlignmentResult(
                 seq_name, xa_read.query_sequence, leading_clips, len(xa_read.query_sequence) - trailing_clips - 1,
-                int(xa_read.reference_start), int(xa_read.reference_end),
+                int(xa_read.reference_start), int(xa_read.reference_end-1),
                 template_length, tuple(xa_read.cigartuples), qual_pl
             )
             LOGGER.debug(f"Adding: {p}")
