@@ -145,7 +145,6 @@ task AnnotateBarcodesAndUMIs {
 
     # Mem is in units of GB but our command and memory runtime values are in MB
     Int machine_mem = if defined(mem_gb) then mem_gb * 1024 else default_ram_mb
-    Int command_mem = machine_mem - 1024
 
     String timing_output_file = "timingInformation.txt"
 

@@ -633,10 +633,16 @@ def correct_barcodes(observed_barcodes, analysis_name, stats, whitelist_10x, whi
 
                 output_file.write(read)
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        description='Reads an input BAM file and tries to extract adapter and barcode sequences. When found, annotated reads are written to an output file, if an output filename is provided',
-        epilog='Two barcode whitelists can be provided: a 10x whitelist and an Illumina whitelist. If both whitelists are provided, reads will only be annotated if the barcode matches the Illumina list. If only a 10x whitelist is provided, reads will be annotated if the barcode matches the 10x list. In any case, reads will be annotated with the "raw barcode" tag (CR). If no whitelist is provided, all reads will be annotated with the barcode tage (CB) after correction.')
+        description='Reads an input BAM file and tries to extract adapter and barcode sequences. '
+                    'When found, annotated reads are written to an output file, if an output filename is provided',
+        epilog='Two barcode whitelists can be provided: a 10x whitelist and an Illumina whitelist. '
+               'If both whitelists are provided, reads will only be annotated if the barcode matches the Illumina list.'
+               ' If only a 10x whitelist is provided, reads will be annotated if the barcode matches the 10x list. '
+               'In any case, reads will be annotated with the "raw barcode" tag (CR). If no whitelist is provided, '
+               'all reads will be annotated with the barcode tage (CB) after correction.')
     requiredNamed = parser.add_argument_group('required named arguments')
     requiredNamed.add_argument('-b', '--bam', help='BAM filename', required=True)
     requiredNamed.add_argument('-a', '--adapter', help='Adapter FASTA filename. BWA index must be present.', required=True)

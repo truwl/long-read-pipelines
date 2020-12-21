@@ -144,7 +144,8 @@ workflow PB10xMasSeqSingleFlowcellv2 {
                     read_end_length = 200,
                     poly_t_length = 31,
                     barcode_length = 16,
-                    umi_length = 12
+                    umi_length = 12,
+                    mem_gb = 32
             }
         }
 

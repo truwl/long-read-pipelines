@@ -47,10 +47,14 @@ task GetRunInfo {
     input {
         String subread_bam
 
+        String? bam_suffix
+
         RuntimeAttr? runtime_attr_override
     }
 
     String gcs_dir = sub(subread_bam, basename(subread_bam), "")
+
+    String bam_suffix_arg = if defined(bam_suffix) then " --BS " else ""
 
     command <<<
         set -x
@@ -59,7 +63,7 @@ task GetRunInfo {
 
         # We need to update detect_run_info.py to make it sanitize fields.
         # The `sed` statement here is a hack to get around an issue.
-        python /usr/local/bin/detect_run_info.py ~{gcs_dir} | sed 's#\\$##' > run_info.txt
+        python /usr/local/bin/detect_run_info.py ~{gcs_dir} ~{bam_suffix_arg}~{default="" sep=" --BS " bam_suffix} | sed 's#\\$##' > run_info.txt
     >>>
 
     output {

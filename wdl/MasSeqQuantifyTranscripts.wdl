@@ -1,6 +1,7 @@
 version 1.0
 
 import "tasks/Utils.wdl" as Utils
+import "tasks/PBUtils.wdl" as PB
 
 import "tasks/TranscriptAnalysis/Preprocessing_Tasks.wdl" as PREPROCESS
 import "tasks/TranscriptAnalysis/Salmon_Tasks.wdl" as SALMON
@@ -19,13 +20,34 @@ workflow MasSeqQuantifyTranscripts {
         File array_element_bam
         File transcript_fasta = "gs://broad-dsde-methods-long-reads/resources/gencode_v34/gencode.v34.pc_transcripts.fa"
         File salmon_index_tar_gz = "gs://broad-dsde-methods-long-reads/resources/gencode_v34/gencode.v34.pc_transcripts_index_k31.tar.gz"
+
+        String? sample_name
+
+        String gcs_out_root_dir = "gs://broad-dsde-methods-long-reads-outgoing/MasSeqQuantifyTranscripts"
     }
 
     parameter_meta {
         array_element_bam : "Bam file containing aligned arrayy elements that have been annotated with the 10x tool."
         transcript_fasta : "[optional] FASTA file containing isoforms sequences to quantify for use with Flair.  Defaults to GENCODE v34."
         salmon_index_tar_gz : "[optional] SALMON index file corresponding to the transcripts FASTA file used to quantify the transcripts in the reads (TAR.GZ format).  Defaults to GENCODE v34."
+
+        sample_name : "[optional] The name of the sample to associate with the data in this workflow."
+
+        gcs_out_root_dir: "[optional] Output area to place results.  Defaults to: gs://broad-dsde-methods-long-reads-outgoing/MasSeqQuantifyTranscripts"
     }
+
+    ################################################################################
+
+    # Call our timestamp so we can store outputs without clobbering previous runs:
+    call Utils.GetCurrentTimestampString as WdlExecutionStartTimestamp { input: }
+    call PB.GetRunInfo {
+        input:
+            subread_bam = array_element_bam,
+            bam_suffix = ".bam"                # Get any bam file in the directory - we know there should only be one.
+    }
+
+    String outdir = sub(gcs_out_root_dir, "/$", "")
+    String SM  = select_first([sample_name, GetRunInfo.run_info["SM"]])
 
     ################################################################################
     # Split the array elements into individual files by sample and cell barcode:
@@ -48,9 +70,9 @@ workflow MasSeqQuantifyTranscripts {
     scatter (reads_fasta in split_reads.sample_cell_barcode_fasta_files) {
         call SALMON.RunSalmonQuantTask as salmon_quant {
             input:
-            reads_fasta = reads_fasta,
-            salmon_index_tar_gz = salmon_index_tar_gz,
-            extra_args = "--fldMean 751 --fldSD 460 --minAssignedFrags 1"
+                reads_fasta = reads_fasta,
+                salmon_index_tar_gz = salmon_index_tar_gz,
+                extra_args = "--fldMean 751 --fldSD 460 --minAssignedFrags 1"
         }
     }
 
@@ -126,6 +148,98 @@ workflow MasSeqQuantifyTranscripts {
 #                prefix       = "~{SM[0]}.~{ID[0]}.collapsed"
 #        }
 #    }
+
+    ################################################################################
+    # Finalize
+    ##########
+
+# Commented because I'm still testing.
+#    String base_out_dir = outdir + "/" + SM + "/" + WdlExecutionStartTimestamp.timestamp_string
+#
+#    String salmon_by_cell_output_dir = base_out_dir + "/salmon_data_by_cell"
+#    call FF.FinalizeToDir as FinalizeSalmonByCellData {
+#        input:
+#            files = [salmon_quant.quant_file],
+#            outdir = salmon_by_cell_output_dir
+#    }
+#    call FF.FinalizeToDir as FinalizeSalmonByCellData {
+#        input:
+#            files = [salmon_quant.cmd_info],
+#            outdir = salmon_by_cell_output_dir
+#    }
+#    call FF.FinalizeToDir as FinalizeSalmonByCellData {
+#        input:
+#            files = [salmon_quant.lib_format_counts],
+#            outdir = salmon_by_cell_output_dir
+#    }
+#    call FF.FinalizeToDir as FinalizeSalmonByCellData {
+#        input:
+#            files = [salmon_quant.ambig_info],
+#            outdir = salmon_by_cell_output_dir
+#    }
+#    call FF.FinalizeToDir as FinalizeSalmonByCellData {
+#        input:
+#            files = [salmon_quant.eq_classes],
+#            outdir = salmon_by_cell_output_dir
+#    }
+#    call FF.FinalizeToDir as FinalizeSalmonByCellData {
+#        input:
+#            files = [salmon_quant.expected_bias],
+#            outdir = salmon_by_cell_output_dir
+#    }
+#    call FF.FinalizeToDir as FinalizeSalmonByCellData {
+#        input:
+#            files = [salmon_quant.fld],
+#            outdir = salmon_by_cell_output_dir
+#    }
+#    call FF.FinalizeToDir as FinalizeSalmonByCellData {
+#        input:
+#            files = [salmon_quant.meta_info],
+#            outdir = salmon_by_cell_output_dir
+#    }
+#    call FF.FinalizeToDir as FinalizeSalmonByCellData {
+#        input:
+#            files = [salmon_quant.observed_bias],
+#            outdir = salmon_by_cell_output_dir
+#    }
+#    call FF.FinalizeToDir as FinalizeSalmonByCellData {
+#        input:
+#            files = [salmon_quant.observed_bias_3p],
+#            outdir = salmon_by_cell_output_dir
+#    }
+#    call FF.FinalizeToDir as FinalizeSalmonByCellData {
+#        input:
+#            files = [salmon_quant.log],
+#            outdir = salmon_by_cell_output_dir
+#    }
+#
+#    call FF.FinalizeToDir as FinalizeSalmonSingleCellCountsMatrices {
+#        input:
+#            files = [
+#                make_salmon_count_matrix.count_matrix_tsv,
+#                make_salmon_count_matrix.count_matrix_h5ad
+#            ],
+#            outfile = base_out_dir + "/salmon_single_cell_count_matrix"
+#    }
+#
+#    call FF.FinalizeToDir as FinalizeSalmonCountsMatrices {
+#        input:
+#            files = [
+#                make_salmon_bulk_count_matrix.count_matrix_tsv,
+#                make_salmon_bulk_count_matrix.count_matrix_h5ad
+#            ],
+#            outfile = base_out_dir + "/salmon_bulk_count_matrix"
+#    }
+#
+#    call FF.FinalizeToDir as FinalizeCd45CountsMatrix {
+#        input:
+#            files = [
+#                create_cd45_gene_count_matrix.count_matrix_tsv,
+#                create_cd45_gene_count_matrix.count_matrix_h5ad
+#            ],
+#            outfile = base_out_dir + "/cd45_counts_matrix"
+#    }
+
 
     output {
 #        File cell_fasta_gz                   = split_reads.fasta_tar_gz_out
