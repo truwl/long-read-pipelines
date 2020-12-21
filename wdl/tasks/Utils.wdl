@@ -533,8 +533,13 @@ task GrepCountBamRecords {
     command <<<
         set -euxo pipefail
 
-        export GCS_OAUTH_TOKEN=`gcloud auth application-default print-access-token`
-        samtools view ~{samfilter} ~{bam} | grep ~{arg} ~{regex} > ~{prefix}.txt
+        #export GCS_OAUTH_TOKEN=`gcloud auth application-default print-access-token`
+        #samtools view ~{samfilter} ~{bam} | grep ~{arg} ~{regex} > ~{prefix}.txt
+
+        # For some reason samtools was having an issue reading from gcs and this seems to work just fine...
+        # Need to look into root cause, but for now this bandaid should work:
+        gsutil cat ~{bam} | samtools view ~{samfilter}  - | grep ~{arg} ~{regex} > ~{prefix}.txt
+
     >>>
 
     output {
