@@ -99,6 +99,7 @@ workflow PB10xMasSeqSingleFlowcellv2 {
                     subreads = subreads,
                     preemptible_attempts = 0,
                     min_passes = 2,
+                    disk_space_scale_factor = 4,
                     mem_gb = 16
             }
 

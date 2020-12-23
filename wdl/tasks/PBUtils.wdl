@@ -159,11 +159,12 @@ task CCS {
         Int cpus = 4
         Int preemptible_attempts = 2
         Int mem_gb = 8
+        Int disk_space_scale_factor = 2
 
         RuntimeAttr? runtime_attr_override
     }
 
-    Int disk_size = 4*ceil(size(subreads, "GB"))
+    Int disk_size = disk_space_scale_factor*ceil(size(subreads, "GB"))
 
     command <<<
         set -euxo pipefail
