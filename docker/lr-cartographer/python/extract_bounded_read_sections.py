@@ -58,8 +58,8 @@ MOSAIC_ALIGNER_LINE_MATCH_PATTERN = re.compile(r"^\s*(.*?)\s\[\s*(\d+)-\s*(\d+)\
 # Default max PL:
 MAX_ALIGNMENT_PL = 60
 
-# Minimum allowed PL quality value:
-MIN_QUAL = 0
+# Minimum reported PL quality value (will override lower values):
+MIN_ALIGNMENT_PL = 0
 
 # Min PL for an alignment to be kept as "good":
 # This should be equal to the base read quality.
@@ -251,7 +251,8 @@ def print_logo(alignment_type):
         try:
             alignment_algorithm = AlignmentAlgorithm[alignment_type]
         except KeyError:
-            LOGGER.error("Error: You must provide a valid alignment algorithm.  Options are: %s", ", ".join([e.name  for e in AlignmentAlgorithm]))
+            LOGGER.error("Error: You must provide a valid alignment algorithm.  Options are: %s",
+                         ", ".join([e.name for e in AlignmentAlgorithm]))
             sys.exit(1)
 
     LOGGER.info("====================================================================")
@@ -340,7 +341,7 @@ def compute_detailed_alignment_info(
             However, because of how Tesserae works, we ignore leading and trailing deletions.
     """
 
-    no_alignment = DetailedAlignmentInfo(-1, -1, 0, (), MIN_QUAL)
+    no_alignment = DetailedAlignmentInfo(-1, -1, 0, (), MIN_ALIGNMENT_PL)
 
     # Do some basic checks here:
     if len(query_alignment_string) == 0:
@@ -624,7 +625,8 @@ def process_raw_results(raw_results_list, minqual, minbases):
                         sep = " ,"
                     reason_string = reason_string + sep + "[quality - " + str(detailed_alignment_info.qual_pl) + \
                                     " <= " + str(minqual) + "]"
-                LOGGER.debug("Target does not pass threshold: %s: %s (%s)", target_name, reason_string, detailed_alignment_info)
+                LOGGER.debug("Target does not pass threshold: %s: %s (%s)",
+                             target_name, reason_string, detailed_alignment_info)
             added_last = False
 
         # Track our info to the next iteration:
@@ -990,7 +992,7 @@ def extract_read_sections(args):
             alignment_algorithm = AlignmentAlgorithm[args.aligner]
         except KeyError:
             LOGGER.error("Error: You must provide a valid alignment algorithm.  Options are: %s",
-                         ", ".join([e.name  for e in AlignmentAlgorithm]))
+                         ", ".join([e.name for e in AlignmentAlgorithm]))
             sys.exit(1)
     LOGGER.info("Alignment Algorithm: %s", alignment_algorithm.name)
 
@@ -1016,10 +1018,10 @@ def extract_read_sections(args):
 
     # Open all our files here so they'll be automatically closed:
     with open(args.outfile, 'w') as out_file, \
-         open(args.rejected_outfile, 'w') as rejected_out_file, \
-         open(args.raw_marker_alignments, 'w') as raw_marker_alignments_file, \
-         open(args.initial_section_alignments, 'w') as initial_section_alignments,  \
-         open(args.final_section_alignments, 'w') as final_section_alignments_file:
+            open(args.rejected_outfile, 'w') as rejected_out_file, \
+            open(args.raw_marker_alignments, 'w') as raw_marker_alignments_file, \
+            open(args.initial_section_alignments, 'w') as initial_section_alignments, \
+            open(args.final_section_alignments, 'w') as final_section_alignments_file:
 
         num_sequences_extracted = 0
         num_reads_with_sub_sequences = 0
@@ -1062,11 +1064,10 @@ def extract_read_sections(args):
                                  spacing_one)
 
                     # Create a position map so we can get real read positions from teh alignment string positions:
-                    if alignment_algorithm == AlignmentAlgorithm.BWA_MEM or \
-                            alignment_algorithm == AlignmentAlgorithm.BWA_ALN:
-                        # We don't need to adjust the positions at all if we're using the BWA aligners:
-                        alignment_read_pos_map = IdentityMap()
-                    else:
+                    alignment_read_pos_map = IdentityMap()
+                    if alignment_algorithm != AlignmentAlgorithm.BWA_MEM and \
+                            alignment_algorithm != AlignmentAlgorithm.BWA_ALN:
+                        # We only need to adjust the positions we're not using the BWA aligners:
                         alignment_read_pos_map = create_alignment_to_base_map(query_result.alignment_string)
 
                     # Write our raw marker alignments:
@@ -1234,7 +1235,7 @@ def write_sub_sequences(read_sequence, bounded_seq_tuple_list, alignment_read_po
             start_coord = end_alignment.read_end_pos
             end_coord = start_alignment.read_start_pos
             # Clean up the disambiguators (md5sums) from the RC names:
-            decorator_length=len(RC_READ_NAME_IDENTIFIER) - len(RC_READ_NAME_IDENTIFIER_BASE)
+            decorator_length = len(RC_READ_NAME_IDENTIFIER) - len(RC_READ_NAME_IDENTIFIER_BASE)
             start_name = start_alignment.seq_name[:-decorator_length]
             end_name = end_alignment.seq_name[:-decorator_length]
 
@@ -1260,8 +1261,8 @@ def get_qual_pl(num_errors, seq_length):
         return MAX_ALIGNMENT_PL
     else:
         q = -10 * math.log10(num_errors / seq_length)
-        if q < MIN_QUAL:
-            return MIN_QUAL
+        if q < MIN_ALIGNMENT_PL:
+            return MIN_ALIGNMENT_PL
         else:
             return q
 
@@ -1319,12 +1320,14 @@ def create_alignment_with_bwa_mem(read_sequence, target_sequences, minqual, minb
                 LOGGER.debug(l.rstrip())
 
         bwa_mem_args = ["/bwa-mem2-2.0pre2_x64-linux/bwa-mem2", "mem",
-                        "-a",                # Output all found alignments for single-end or unpaired paired-end reads. These alignments will be flagged as secondary alignments.
+                        "-a",                # Output all found alignments for single-end or unpaired paired-end reads.
+                                             # These alignments will be flagged as secondary alignments.
                         "-S",                # skip mate rescue
                         "-P",                # skip pairing; mate rescue performed unless -S also in use
                         "-k8",               # minimum seed length
                         "-A", "1",           # Matching score.
-                        "-B", "4",           # Mismatch penalty. The sequence error rate is approximately: {.75 * exp[-log(4) * B/A]}.
+                        "-B", "4",           # Mismatch penalty.
+                                             #  The sequence error rate is approximately: {.75 * exp[-log(4) * B/A]}.
                         "-O", "6,6",         # Gap open penalty.
                         "-E", "1,1",         # gap extension penalty; a gap of size k cost '{-O} + {-E}*k'
                         "-L", "5,5",         # penalty for 5'- and 3'-end clipping
@@ -1904,7 +1907,8 @@ def align_sequences(read_sequence, target_sequences, minqual, minbases,
     # BWA MEM Alignments are sufficiently different that we have to handle them separately:
     if alignment_type == AlignmentAlgorithm.BWA_MEM:
         start_time = time.time()
-        processed_results = create_alignment_with_bwa_mem(read_sequence, target_sequences, minqual, minbases, threads=threads)
+        processed_results = create_alignment_with_bwa_mem(read_sequence, target_sequences, minqual, minbases,
+                                                          threads=threads)
         end_time = time.time()
         LOGGER.info("%sCreated %d Alignments.  Alignment took %fs", log_spacing, len(processed_results),
                     end_time - start_time)
@@ -1915,12 +1919,16 @@ def align_sequences(read_sequence, target_sequences, minqual, minbases,
     # BWA ALN Alignments are sufficiently different that we have to handle them separately:
     if alignment_type == AlignmentAlgorithm.BWA_ALN:
         start_time = time.time()
-        processed_results = create_alignment_with_bwa_aln(read_sequence, target_sequences, minqual, minbases, threads=threads)
+        processed_results = create_alignment_with_bwa_aln(read_sequence, target_sequences, minqual, minbases,
+                                                          threads=threads)
         end_time = time.time()
         LOGGER.info("%sCreated %d Alignments.  Alignment took %fs", log_spacing, len(processed_results),
                     end_time - start_time)
 
-        query_result = TesseraeAlignmentResult(read_sequence.name, read_sequence.sequence, 0, len(read_sequence.sequence))
+        query_result = TesseraeAlignmentResult(read_sequence.name,
+                                               read_sequence.sequence,
+                                               0,
+                                               len(read_sequence.sequence))
         return processed_results, query_result
 
     # Handle all other alignment types here:
