@@ -94,7 +94,13 @@ workflow PB10xMasSeqSingleFlowcellv2 {
             # Call CCS on the subreads from the sequencer:
             # No preepting because these take long enough that it doesn't seem to save $
             # 16 gigs of memory because I had a crash at 8
-            call PB.CCS { input: subreads = subreads, preemptible_attempts = 0, mem_gb = 16 }
+            call PB.CCS {
+                input:
+                    subreads = subreads,
+                    preemptible_attempts = 0,
+                    min_passes = 2,
+                    mem_gb = 16
+            }
 
             # Shard these reads even wider so we can make sure we don't run out of memory:
             call Utils.ShardLongReadsWithCopy as ShardCorrectedReads { input: unmapped_files = [ CCS.consensus ], num_reads_per_split = 20000 }
