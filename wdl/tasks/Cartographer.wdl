@@ -19,8 +19,9 @@ task ExtractBoundedReadSectionsTask {
 
         String aligner = "BWA_MEM"
 
+        Float min_qual = 7.0
+
         Int? max_read_length
-        Float? min_qual
         Int? min_bases
         Float? prec_known
         Float? prec_unknown
@@ -39,8 +40,9 @@ task ExtractBoundedReadSectionsTask {
 
         aligner : "[optional] The alignment method to use to find the bounded regions (TESSERAE, MOSAIC_ALIGNER, SMITH_WATERMAN, NEEDLEMAN_WUNSCH, BWA_MEM, BWA_ALN) (Default: BWA_MEM)"
 
+        min_qual : "[optional] Minimum quality for good alignment.  (Default: 7.0)"
+
         max_read_length : "[optional] The read length beyond which a read will not be processed."
-        min_qual : "[optional] Minimum quality for good alignment."
         min_bases : "[optional] Minimum number of bases for an alignment to be retained."
         prec_known : "[optional] Probability of recombination for known segment alignment."
         prec_unknown : "[optional] Probability of recombination for UNKNOWN segment alignment."
@@ -63,7 +65,6 @@ task ExtractBoundedReadSectionsTask {
     String memory_log_file = "memory_log.txt"
 
     String max_read_length_arg = if defined(max_read_length) then " --max_read_length " else ""
-    String min_qual_arg = if defined(min_qual) then " --minqual " else ""
     String min_bases_arg = if defined(min_bases) then " --minbases " else ""
     String prec_known_arg = if defined(prec_known) then " --prec_known " else ""
     String prec_unknown_arg = if defined(prec_unknown) then " --prec_unknown " else ""
@@ -108,7 +109,7 @@ task ExtractBoundedReadSectionsTask {
             -s ~{segments_fasta} \
             -b ~{boundaries_file} \
             ~{max_read_length_arg}~{default="" sep=" --max_read_length " max_read_length} \
-            ~{min_qual_arg}~{default="" sep=" --minqual " min_qual} \
+            --minqual ~{min_qual} \
             ~{min_bases_arg}~{default="" sep=" --minbases " min_qual} \
             ~{prec_known_arg}~{default="" sep=" --prec_known " prec_known} \
             ~{prec_unknown_arg}~{default="" sep=" --prec_unknown " prec_unknown} \

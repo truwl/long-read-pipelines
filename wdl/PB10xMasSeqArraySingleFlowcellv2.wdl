@@ -115,6 +115,7 @@ workflow PB10xMasSeqSingleFlowcellv2 {
                         boundaries_file     = boundaries_file,
                         max_read_length     = 50000,
                         aligner             = "BWA_ALN",
+                        min_qual            = 5.0,
                         mem_gb              = 16
                 }
             }
