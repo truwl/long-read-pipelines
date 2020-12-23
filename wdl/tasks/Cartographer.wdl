@@ -110,7 +110,7 @@ task ExtractBoundedReadSectionsTask {
             -b ~{boundaries_file} \
             ~{max_read_length_arg}~{default="" sep=" --max_read_length " max_read_length} \
             --minqual ~{min_qual} \
-            ~{min_bases_arg}~{default="" sep=" --minbases " min_qual} \
+            ~{min_bases_arg}~{default="" sep=" --minbases " min_bases} \
             ~{prec_known_arg}~{default="" sep=" --prec_known " prec_known} \
             ~{prec_unknown_arg}~{default="" sep=" --prec_unknown " prec_unknown} \
             --aligner ~{aligner} \
