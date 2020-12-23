@@ -501,19 +501,28 @@ def write_sub_sequences(read_data, aligned_delimiters, out_fasta_file):
     """
 
     cur_read_base_index = 0
+    prev_delim_name = "START"
 
     for delimiter_alignment in aligned_delimiters:
 
         # Do some math here to account for how we create the tuple list:
         # And adjust for reverse complements:
         start_coord = cur_read_base_index
-        end_coord = delimiter_alignment.read_end_pos
+        end_coord = delimiter_alignment.read_start_pos
         delim_name = delimiter_alignment.seq_name
 
-        out_fasta_file.write(f">{read_data.name}_{start_coord}-{end_coord}_{delim_name}\n")
-        out_fasta_file.write(f"{read_data.sequence[start_coord:end_coord+1]}\n")
+        out_fasta_file.write(f">{read_data.name}_{start_coord+1}-{end_coord}_{prev_delim_name}-{delim_name}\n")
+        out_fasta_file.write(f"{read_data.seq[start_coord:end_coord]}\n")
 
-        cur_read_base_index = end_coord + 1
+        cur_read_base_index = end_coord
+        prev_delim_name = delim_name
+
+    # Now we have to write out the last segment:
+    start_coord = cur_read_base_index
+    end_coord = len(read_data.seq)
+    delim_name = "END" 
+    out_fasta_file.write(f">{read_data.name}_{start_coord+1}-{end_coord}_{prev_delim_name}-{delim_name}\n")
+    out_fasta_file.write(f"{read_data.seq[start_coord:end_coord]}\n")
 
 
 def split_sequences(args):
@@ -544,7 +553,7 @@ def split_sequences(args):
     if os.path.exists(args.outfile):
         LOGGER.warning("Outfile already exists.  Will overwrite: %s", args.outfile)
 
-    LOGGER.info("Ingesting delimiters from %s ...", args.segments)
+    LOGGER.info("Ingesting delimiters from %s ...", args.delimiters)
     delimiter_names_to_seq_dict, _ = ingest_fastx_file(args.delimiters)
     LOGGER.info("Ingested %d delimiters.", len(delimiter_names_to_seq_dict))
     dump_seq_map(delimiter_names_to_seq_dict, "Delimiters")
@@ -597,10 +606,10 @@ def split_sequences(args):
 
                     # Track subsequence statistics:
                     num_forward_subsequences_extracted += sum(
-                        not b[0].seq_name.endswith(RC_READ_NAME_IDENTIFIER) for b in segment_alignment_results
+                        not b.seq_name.endswith(RC_READ_NAME_IDENTIFIER) for b in segment_alignment_results
                     )
                     num_rc_subsequences_extracted += sum(
-                        b[0].seq_name.endswith(RC_READ_NAME_IDENTIFIER) for b in segment_alignment_results
+                        b.seq_name.endswith(RC_READ_NAME_IDENTIFIER) for b in segment_alignment_results
                     )
                     num_delimiters_detected_this_read = len(segment_alignment_results) + 1
                     num_delimiters_detected += num_delimiters_detected_this_read
