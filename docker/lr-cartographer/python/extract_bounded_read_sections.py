@@ -188,6 +188,7 @@ CIGAR_ELEMENT_STRING_MAP = {
     pysam.CREF_SKIP: "N",
     pysam.CDIFF: "X"
 }
+STRING_CIGAR_ELEMENT_MAP = {v: k for (k, v) in CIGAR_ELEMENT_STRING_MAP.items()}
 
 
 def cigar_tuple_to_string(cigar_tuples):
@@ -1277,7 +1278,7 @@ def create_alignment_with_bwa_mem(read_sequence, target_sequences, minqual, minb
     :param minbases: Minimum number of bases for an alignment to be retained.
     :param threads: number of threads to use when aligning.
     :param log_spacing: Spacing to precede any log statements.
-    :return: A list of TesseraeAlignmentResult objects.
+    :return: A list of ProcessedAlignmentResult objects.
     """
 
     out_file_name = "tmp.sam"
@@ -1669,27 +1670,9 @@ def parse_cigar_string_to_tuples(cigar_string):
             buf.append(c)
         else:
             # Now we're at the "string" portion:
-            if v == ord('M'):
-                v = pysam.CMATCH
-            elif v == ord('I'):
-                v = pysam.CINS
-            elif v == ord('D'):
-                v = pysam.CDEL
-            elif v == ord('N'):
-                v = pysam.CREF_SKIP
-            elif v == ord('S'):
-                v = pysam.CSOFT_CLIP
-            elif v == ord('H'):
-                v = pysam.CHARD_CLIP
-            elif v == ord('P'):
-                v = pysam.CPAD
-            elif v == ord('='):
-                v = pysam.CEQUAL
-            elif v == ord('X'):
-                v = pysam.CDIFF
-            elif v == ord('B'):
-                v = pysam.CBACK
-            else:
+            try:
+                v = STRING_CIGAR_ELEMENT_MAP[c]
+            except KeyError:
                 raise KeyError(f"Error: No such cigar element: {c}")
 
             cigar_tuple_list.append((v, int("".join(buf))))
@@ -1981,7 +1964,7 @@ def main(raw_args):
         description="Ingests three files: "
                     "one read file(FASTA/FASTQ/SAM/BAM) containing reads to be mapped, "
                     "one FASTA file containing known possible sequences that can occur in the read,"
-                    "ond a file containing read sequence boundaries.  This sequence boundaries file is"
+                    "and a file containing read sequence boundaries.  This sequence boundaries file is"
                     "a plain text file with two comma separated sequence names per line.  The names should correspond"
                     "to the sequence names in the given sequence FASTA file.",
         usage="extract read sections bounded by given known sequences into a new fasta file",
