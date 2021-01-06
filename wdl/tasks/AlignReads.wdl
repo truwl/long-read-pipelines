@@ -25,8 +25,9 @@ task Minimap2 {
 
     # 10x for the decompressed file size
     # 2x for potential for FASTQ and SAM files (from file conversion).
+    # 2x for extra "just in case" space.
     # +1 to handle small files
-    Int disk_size = 1 + 10*ceil(size(reads, "GB") + size(ref_fasta, "GB"))
+    Int disk_size = 1 + 10*2*2*ceil(size(reads, "GB") + size(ref_fasta, "GB"))
 
     Int cpus = 4
     Int mem = 30

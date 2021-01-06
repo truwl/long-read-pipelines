@@ -118,6 +118,15 @@ workflow PB10xMasSeqSingleFlowcellv2 {
                         min_qual            = 5.0,
                         mem_gb              = 16
                 }
+
+#                call CART.SplitSequenceOnDelimiters {
+#                    input:
+#                        reads_file          = corrected_shard,
+#                        delimiters_fasta    = segments_fasta,
+#                        max_read_length     = 50000,
+#                        min_qual            = 5.0,
+#                        mem_gb              = 8
+#                }
             }
 
             # Merge all outputs of ExtractBoundedReadSectionsTask:
@@ -135,12 +144,16 @@ workflow PB10xMasSeqSingleFlowcellv2 {
                     map_preset = "splice"
             }
 
+            RuntimeAttr align_ccs_reads_runtime_attrs = object {
+                preemptible_tries:  0
+            }
             call AR.Minimap2 as AlignCCSReads {
                 input:
                     reads      = [ CCS.consensus ],
                     ref_fasta  = ref_fasta,
                     RG         = RG_consensus,
-                    map_preset = "splice"
+                    map_preset = "splice",
+                    runtime_attr_override = align_ccs_reads_runtime_attrs
             }
 
             call TENX.AnnotateBarcodesAndUMIs as AnnotateArrayElements {
@@ -340,6 +353,9 @@ workflow PB10xMasSeqSingleFlowcellv2 {
     # Finalize
     ##########
 
+    # NOTE: We key all finalization steps on the static report.
+    #       This will prevent incomplete runs from being placed in the output folders.
+
     # TODO: Should make this iterate through all found bam files, not just the first one.  This seems to be the case for all workflows right now though...
 
     # Finalize the notebooks:
@@ -351,7 +367,8 @@ workflow PB10xMasSeqSingleFlowcellv2 {
                 GenerateInteractiveReport.html_report,
                 GenerateInteractiveReport.pdf_report
             ],
-            outdir = interactive_report_dir
+            outdir = interactive_report_dir,
+            keyfile = GenerateStaticReport.html_report
     }
     String static_report_dir = metrics_out_dir + "/report_static"
     call FF.FinalizeToDir as FinalizeStaticReport {
@@ -361,7 +378,8 @@ workflow PB10xMasSeqSingleFlowcellv2 {
                 GenerateStaticReport.html_report,
                 GenerateStaticReport.pdf_report
             ],
-            outdir = static_report_dir
+            outdir = static_report_dir,
+            keyfile = GenerateStaticReport.html_report
     }
 
     # Finalize all the Extracted Bounded Regions data:
@@ -375,7 +393,8 @@ workflow PB10xMasSeqSingleFlowcellv2 {
                 MergeArrayElementInitialSections_3.merged_file,
                 MergeArrayElementFinalSections_3.merged_file
             ],
-            outdir = extractBoundedRegionsDir
+            outdir = extractBoundedRegionsDir,
+            keyfile = GenerateStaticReport.html_report
     }
 
     # Finalize all the 10x metrics here:
@@ -389,43 +408,50 @@ workflow PB10xMasSeqSingleFlowcellv2 {
                     AnnotateArrayElements.stats[0][i],
                     AnnotateArrayElements.timing_info[0][i]
                 ],
-                outdir = tenXToolMetricsDir + "/" + i
+                outdir = tenXToolMetricsDir + "/" + i,
+                keyfile = GenerateStaticReport.html_report
         }
     }
 
     call FF.FinalizeToDir as FinalizeAnnotatedArrayElements {
         input:
             files = [ MergeAnnotatedAlignedArrayElements.merged_bam, MergeAnnotatedAlignedArrayElements.merged_bai ],
-            outdir = base_out_dir + "/annotated_aligned_array_elements"
+            outdir = base_out_dir + "/annotated_aligned_array_elements",
+            keyfile = GenerateStaticReport.html_report
     }
 
     call FF.FinalizeToDir as FinalizeRnaSeqMetrics {
         input:
             files = [ ArrayElementRnaSeqMetrics.rna_metrics ],
-            outdir = metrics_out_dir
+            outdir = metrics_out_dir,
+            keyfile = GenerateStaticReport.html_report
     }
 
     call FF.FinalizeToDir as FinalizeArrayElements {
         input:
             files = [ MergeAlignedArrayElements.merged_bam, MergeAlignedArrayElements.merged_bai ],
-            outdir = base_out_dir + "/aligned_array_elements"
+            outdir = base_out_dir + "/aligned_array_elements",
+            keyfile = GenerateStaticReport.html_report
     }
 
     call FF.FinalizeToDir as FinalizeAlignedCCSBams {
         input:
             files = [ MergeAllAlignedCCSBams.merged_bam, MergeAllAlignedCCSBams.merged_bai ],
-            outdir = base_out_dir + "/merged_bams/aligned"
+            outdir = base_out_dir + "/merged_bams/aligned",
+            keyfile = GenerateStaticReport.html_report
     }
 
     call FF.FinalizeToDir as FinalizeCCSBams {
         input:
             files = [ MergeAllCCSBams.merged_bam, MergeAllCCSBams.merged_bai ],
-            outdir = base_out_dir + "/merged_bams/unaligned"
+            outdir = base_out_dir + "/merged_bams/unaligned",
+            keyfile = GenerateStaticReport.html_report
     }
 
     call FF.FinalizeToDir as FinalizeCCSMetrics {
         input:
             files = [ MergeAllCCSReports.report ],
-            outdir = metrics_out_dir + "/ccs_metrics"
+            outdir = metrics_out_dir + "/ccs_metrics",
+            keyfile = GenerateStaticReport.html_report
     }
 }

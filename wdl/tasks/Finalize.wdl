@@ -3,11 +3,29 @@ version 1.0
 import "Structs.wdl"
 
 task FinalizeToFile {
+
+    meta {
+        description : "Copy a file to an output google cloud location."
+        author : "Kiran Garimella"
+        email : "kiran@broadinstitute.org"
+    }
+
     input {
         String file
         String outfile
 
+        File? keyfile
+
         RuntimeAttr? runtime_attr_override
+    }
+
+    parameter_meta {
+        file : "Google cloud path to the source file."
+        outfile : "Google cloud path to the destination file"
+
+        keyfile : "[optional] File used to key this finaliation.  Finalization will not take place until the KeyFile exists.  This can be used to force the finaliation to wait until a certain point in a workflow.  NOTE: The latest WDL development spec includes the `after` keyword which will obviate this."
+
+        runtime_attr_override : "[optional] Additional runtime parameters."
     }
 
     # This idiom ensures that we don't accidentally have double-slashes in our GCS paths
@@ -42,11 +60,29 @@ task FinalizeToFile {
 }
 
 task FinalizeToDir {
+
+    meta {
+        description : "Copy a set of files to an output google cloud location."
+        author : "Kiran Garimella"
+        email : "kiran@broadinstitute.org"
+    }
+
     input {
         Array[String] files
         String outdir
 
+        File? keyfile
+
         RuntimeAttr? runtime_attr_override
+    }
+
+    parameter_meta {
+        files : "Array of Google cloud paths to the source files."
+        outdir : "Google cloud path to the destination folder."
+
+        keyfile : "[optional] File used to key this finaliation.  Finalization will not take place until the KeyFile exists.  This can be used to force the finaliation to wait until a certain point in a workflow.  NOTE: The latest WDL development spec includes the `after` keyword which will obviate this."
+
+        runtime_attr_override : "[optional] Additional runtime parameters."
     }
 
     # This idiom ensures that we don't accidentally have double-slashes in our GCS paths
