@@ -129,7 +129,7 @@ workflow PB10xMasSeqSingleFlowcellv2 {
 #                }
 
                 # Get ZMW Subread stats here to shard them out wider and make it faster:
-                call PB.CollectZmwSubreadStats as CollectZmwSubreadStats_Microsharded{ input: subreads = subread_bam, prefix = SM + "_zmw_subread_stats"}
+                call PB.CollectZmwSubreadStats as CollectZmwSubreadStats_Microsharded{ input: subreads = corrected_shard, prefix = SM + "_zmw_subread_stats"}
             }
 
             # Merge all outputs of ExtractBoundedReadSectionsTask:
