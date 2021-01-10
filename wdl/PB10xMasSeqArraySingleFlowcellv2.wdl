@@ -317,6 +317,9 @@ workflow PB10xMasSeqSingleFlowcellv2 {
 
     ## NOTE: This assumes ONE file for both the raw input and the 10x array element stats!
     ##       This should be fixed in version 2.
+    RuntimeAttr create_report_runtime_attrs = object {
+            preemptible_tries:  0
+    }
     call JUPYTER.PB10xMasSeqSingleFlowcellReport as GenerateStaticReport {
         input:
             notebook_template              = jupyter_template_static,
@@ -340,7 +343,9 @@ workflow PB10xMasSeqSingleFlowcellv2 {
             rna_seq_metrics_file           = ArrayElementRnaSeqMetrics.rna_metrics,
 
             workflow_dot_file              = workflow_dot_file,
-            prefix                         = "static"
+            prefix                         = "static",
+
+            runtime_attr_override          = create_report_runtime_attrs,
     }
 
     ##########

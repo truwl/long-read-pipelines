@@ -1686,7 +1686,7 @@ def get_processed_results_from_bwa_aln_file(file_path, minqual, minbases):
     Ingests the given file and creates raw alignments from it.
     This method is VERY similar to the BWA MEM equivalent, but with an epilog to handle XA tags for each read.
 
-    :param file_path: Path to the sam file of a BWA MEM run.
+    :param file_path: Path to the sam file of a BWA ALN run.
     :param minqual: Minimum quality for an alignment to be retained.
     :param minbases: Minimum number of bases for an alignment to be retained.
     :return: A list of ProcessedAlignmentResult objects.

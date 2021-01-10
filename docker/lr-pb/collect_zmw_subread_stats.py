@@ -37,9 +37,6 @@ def get_stats(args):
 
     stat_names = ['num_subreads', 'min_length', 'max_length', 'range', 'mean', 'median', 'stdev']
 
-    # Print header:
-    print("\t".join(['zmw'] + stat_names + ['raw_subread_lengths']))
-
     with open(args.outfile, 'w') as out_file:
 
         out_file.write("\t".join(['zmw'] + stat_names + ['raw_subread_lengths']))
@@ -73,18 +70,6 @@ def get_stats(args):
                         stats["stdev"] = statistics.stdev(zmw_read_lengths)
                     else:
                         stats["stdev"] = 0
-
-                    # read_length_diffs = list(
-                    #     map(
-                    #         lambda x: (abs(x - stats["mean"]) + abs(x - stats["median"]))/2,
-                    #         zmw_read_lengths
-                    #     )
-                    # )
-                    # index_min = min(range(len(read_length_diffs)), key=read_length_diffs.__getitem__)
-                    #
-                    # # Analyze read here:
-                    # print(f"\"Best\" subread: {subread_names[index_min]} -> {subread_seqs[index_min]}")
-                    # break
 
                     out_file.write(f"{zmw}")
                     for k in stat_names:
@@ -123,13 +108,12 @@ def main(raw_args):
 
     parser = argparse.ArgumentParser(
         description="Ingests one file: "
-                    "PacBio subreads file (SAM/BAM) containing raw subreads off the instrument."
-                    "Under the hood uses BWA-MEM 2",
+                    "PacBio subreads file (SAM/BAM) containing raw subreads off the instrument.",
         usage="Naively split every sequence in the given reads file by the delimiters in the given delimters file.",
     )
 
-    align_required_args = parser.add_argument_group("required arguments")
-    align_required_args.add_argument(
+    required_args = parser.add_argument_group("required arguments")
+    required_args.add_argument(
         "-b", "--bam", help="PacBio subreads SAM/BAM file.", required=True
     )
 
