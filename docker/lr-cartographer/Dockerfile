@@ -129,7 +129,10 @@ RUN mkdir /cartographer
 COPY python/cartographer.py /cartographer/
 COPY python/cartographer_bi_dir_segments.py /cartographer/
 COPY python/extract_bounded_read_sections.py /cartographer/
+COPY python/get_approx_raw_subread_array_lengths.py /cartographer/
+
 COPY test_data/* /cartographer/
+
 RUN chmod +x /cartographer/*.py
 RUN ln -s /cartographer/cartographer.py /cartographer.py
 
