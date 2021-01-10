@@ -26,6 +26,8 @@ task PB10xMasSeqSingleFlowcellReport {
         File ebr_final_section_alignments
         File ebr_bounds_file
 
+        File zmw_subread_stats_file
+
         File ten_x_metrics_file
         File rna_seq_metrics_file
 
@@ -52,6 +54,8 @@ task PB10xMasSeqSingleFlowcellReport {
         ebr_final_section_alignments : "Final section alignments file from ExtractBoundedReads for the data from this MASSeq run."
         ebr_bounds_file : "Text file containing two comma-separated known segment names on each line.  These entries define delimited sections that were extracted from the reads and treated as individual array elements."
 
+        zmw_subread_stats_file : "File containing statistics about the subreads from each ZMW (created by collect_zmw_subread_stats.py in the PBUtils docker container)."
+
         ten_x_metrics_file : "Stats file from the 10x tool run for the data in this MASSeq run."
         rna_seq_metrics_file : "Picard CollectRnaSeqMetrics metrics file created from the aligned MASSeq array elements."
         workflow_dot_file : "DOT file containing the representation of this workflow used to create and analyze the data.  This is included in the QC reports (the DOT file can be generated with womtool)."
@@ -76,6 +80,7 @@ task PB10xMasSeqSingleFlowcellReport {
             size(ebr_final_section_alignments, "GB") +
             size(ebr_bounds_file, "GB") +
             size(ccs_bam_file, "GB") +
+            size(zmw_subread_stats_file, "GB") +
             size(ten_x_metrics_file, "GB") +
             size(rna_seq_metrics_file, "GB") +
             size(workflow_dot_file, "GB")
@@ -116,6 +121,8 @@ task PB10xMasSeqSingleFlowcellReport {
         echo "~{ebr_initial_section_alignments}" >> mas-seq_qc_inputs.config
         echo "~{ebr_final_section_alignments}" >> mas-seq_qc_inputs.config
         echo "~{ebr_bounds_file}" >> mas-seq_qc_inputs.config
+
+        echo "~{zmw_subread_stats_file}" >> mas-seq_qc_inputs.config
 
         echo "~{ten_x_metrics_file}" >> mas-seq_qc_inputs.config
         echo "~{rna_seq_metrics_file}" >> mas-seq_qc_inputs.config

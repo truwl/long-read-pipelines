@@ -117,6 +117,8 @@ workflow PB10xMasSeqSingleFlowcellv2 {
                         mem_gb              = 16
                 }
 
+                # Alternate splitting mechanism here.
+                # Uncomment after it's been tested better.
 #                call CART.SplitSequenceOnDelimiters {
 #                    input:
 #                        reads_file          = corrected_shard,
@@ -125,6 +127,9 @@ workflow PB10xMasSeqSingleFlowcellv2 {
 #                        min_qual            = 5.0,
 #                        mem_gb              = 8
 #                }
+
+                # Get ZMW Subread stats here to shard them out wider and make it faster:
+                call PB.CollectZmwSubreadStats as CollectZmwSubreadStats_Microsharded{ input: subreads = subread_bam, prefix = SM + "_zmw_subread_stats"}
             }
 
             # Merge all outputs of ExtractBoundedReadSectionsTask:
@@ -133,6 +138,12 @@ workflow PB10xMasSeqSingleFlowcellv2 {
             call Utils.MergeFiles as MergeArrayElementMarkerAlignments_1 { input: files_to_merge = ExtractBoundedReadSectionsTask.raw_marker_alignments, merged_file_name = "EBR_marker_alignments.txt" }
             call Utils.MergeFiles as MergeArrayElementInitialSections_1 { input: files_to_merge = ExtractBoundedReadSectionsTask.initial_section_alignments, merged_file_name = "EBR_initial_sections.txt" }
             call Utils.MergeFiles as MergeArrayElementFinalSections_1 { input: files_to_merge = ExtractBoundedReadSectionsTask.final_section_alignments, merged_file_name = "EBR_final_sections.txt" }
+
+            # Merge our "micro-sharded" zmw subread stats:
+            call Utils.MergeTsvFiles as MergeMicroshardedZmwSubreadStats {
+                input:
+                    tsv_files = CollectZmwSubreadStats_Microsharded.zmw_subread_stats
+            }
 
             call AR.Minimap2 as AlignArrayElements {
                 input:
@@ -171,15 +182,18 @@ workflow PB10xMasSeqSingleFlowcellv2 {
             }
         }
 
-        # Get ZMW Subread stats:
-        call PB.CollectZmwSubreadStats { input: subreads = subread_bam, prefix = SM + "_zmw_subread_stats"}
-
         # Merge all sharded merged outputs of ExtractBoundedReadSectionsTask:
         call Utils.MergeFiles as MergeArrayElementSubShards_2 { input: files_to_merge = MergeArrayElementSubShards_1.merged_file, merged_file_name = "EBR_extracted_reads.fasta" }
         call Utils.MergeFiles as MergeArrayElementRejectedReads_2 { input: files_to_merge = MergeArrayElementRejectedReads_1.merged_file, merged_file_name = "EBR_rejected_reads.txt" }
         call Utils.MergeFiles as MergeArrayElementMarkerAlignments_2 { input: files_to_merge = MergeArrayElementMarkerAlignments_1.merged_file, merged_file_name = "EBR_marker_alignments.txt" }
         call Utils.MergeFiles as MergeArrayElementInitialSections_2 { input: files_to_merge = MergeArrayElementInitialSections_1.merged_file, merged_file_name = "EBR_initial_sections.txt" }
         call Utils.MergeFiles as MergeArrayElementFinalSections_2 { input: files_to_merge = MergeArrayElementFinalSections_1.merged_file, merged_file_name = "EBR_final_sections.txt" }
+
+        # Merge the zmw subread stats:
+        call Utils.MergeTsvFiles as MergeShardedZmwSubreadStats {
+            input:
+                tsv_files = MergeMicroshardedZmwSubreadStats.merged_tsv
+        }
 
         # Merge the 10x stats:
         call Utils.MergeCountTsvFiles as Merge10XStats_1 { input: count_tsv_files = AnnotateArrayElements.stats }
@@ -320,6 +334,8 @@ workflow PB10xMasSeqSingleFlowcellv2 {
             ebr_final_section_alignments   = MergeArrayElementFinalSections_3.merged_file,
             ebr_bounds_file                = boundaries_file,
 
+            zmw_subread_stats_file         = MergeShardedZmwSubreadStats.merged_tsv[0],
+
             ten_x_metrics_file             = Merge10XStats_2.merged_tsv,
             rna_seq_metrics_file           = ArrayElementRnaSeqMetrics.rna_metrics,
 
@@ -424,7 +440,7 @@ workflow PB10xMasSeqSingleFlowcellv2 {
 
     call FF.FinalizeToDir as FinalizeZmwSubreadStats {
         input:
-            files = CollectZmwSubreadStats.zmw_subread_stats,
+            files = MergeShardedZmwSubreadStats.merged_tsv,
             outdir = metrics_out_dir + "/ccs_metrics",
             keyfile = GenerateStaticReport.html_report
     }

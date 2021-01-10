@@ -54,6 +54,8 @@ def get_stats(args):
             subread_seqs = []
             subread_names = []
 
+            num_reads = 0
+
             for r in bam_file.fetch(until_eof=True):
 
                 zmw = int(zmw_re.match(r.query_name).group(1))
@@ -101,6 +103,13 @@ def get_stats(args):
                 subread_seqs.append(r.query_sequence)
                 subread_names.append(r.query_name)
                 prev_zmw = zmw
+
+                num_reads += 1
+
+                if num_reads % 5000 == 0:
+                    LOGGER.info(f"Processed {num_reads} reads.")
+
+        LOGGER.info(f"Total reads processed: {num_reads}")
 
 ################################################################################
 
