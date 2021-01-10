@@ -948,6 +948,59 @@ task MergeCountTsvFiles {
     }
 }
 
+task MergeTsvFiles {
+    meta {
+        description : "Merge several identically formatted TSV files.  Assumes files are identically formatted (same columns in the same order).  Merging performed by removing header lines and simple concatenation."
+        author : "Jonn Smith"
+        email : "jonn@broadinstitute.org"
+    }
+
+    input {
+        Array[File] tsv_files
+    }
+
+    parameter_meta {
+        tsv_files : "Array of TSV files to be combined.  Files will be combined in the order they are given."
+    }
+
+    String out_file = "combined.tsv"
+
+    # We're simply merging files, so we shouldn't need much space
+    # 1x for the files themselves
+    # 2x for the results and some wiggle room.
+    Int disk_size = 3 * ceil(size(tsv_files, "GB"))
+
+    command {
+
+        file_list=~{write_lines(tsv_files)}
+
+        is_first=true
+        while read tsv_file ; do
+            # Read the header of the first file:
+            if $is_first ; then
+                head -n1 $tsv_file
+                is_first=false
+            fi
+
+            tail -n+2 $tsv_file
+        done < $file_list > ~{out_file}
+    }
+
+    output {
+        File merged_tsv = "~{out_file}"
+    }
+
+    # Runtime requirements are tiny for this operation.
+    runtime {
+        docker: "ubuntu:19.10"
+        memory: 2 + " GiB"
+        disks: "local-disk " + disk_size + " HDD"
+        boot_disk_gb: 10
+        preemptible: 0
+        cpu: 1
+    }
+}
+
 # Get the current timestamp as a string.
 # Levergaes the unix `date` command.
 # You can enter your own date format string.

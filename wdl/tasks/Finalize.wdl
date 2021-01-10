@@ -115,3 +115,52 @@ task FinalizeToDir {
         docker:                 select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
+
+task WriteCompletionFile {
+
+    meta {
+        description : "Write a file to the given directory indicating the run has completed."
+        author : "Jonn Smith"
+        email : "jonn@broadinstitute.org"
+    }
+
+    input {
+        String outdir
+        File? keyfile
+    }
+
+    parameter_meta {
+        outdir : "Google cloud path to the destination folder."
+
+        keyfile : "[optional] File used to key this finaliation.  Finalization will not take place until the KeyFile exists.  This can be used to force the finaliation to wait until a certain point in a workflow.  NOTE: The latest WDL development spec includes the `after` keyword which will obviate this."
+    }
+
+    command <<<
+        set -euxo pipefail
+
+        completion_file="COMPLETED_AT_$(date +%Y%m%dT%H%M%S).txt"
+        touch $completion_file
+
+        gsutil -m cp $completion_file ~{gcs_output_dir}
+    >>>
+
+    #########################
+    RuntimeAttr runtime_attr = object {
+        cpu_cores:          1,
+        mem_gb:             2,
+        disk_gb:            10,
+        boot_disk_gb:       10,
+        preemptible_tries:  2,
+        max_retries:        2,
+        docker:             "us.gcr.io/broad-dsp-lrma/lr-finalize:0.1.2"
+    }
+    runtime {
+        cpu:                    runtime_attr.cpu_cores]
+        memory:                 runtime_attr.mem_gb] + " GiB"
+        disks: "local-disk " +  runtime_attr.disk_gb] + " HDD"
+        bootDiskSizeGb:         runtime_attr.boot_disk_gb]
+        preemptible:            runtime_attr.preemptible_tries]
+        maxRetries:             runtime_attr.max_retries]
+        docker:                 runtime_attr.docker]
+    }
+}

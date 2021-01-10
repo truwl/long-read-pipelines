@@ -35,7 +35,6 @@ workflow PB10xMasSeqSingleFlowcellv2 {
 
         File ref_flat_annotations = "gs://broad-dsde-methods-long-reads/resources/references/grch38/refFlat.txt"
 
-        File jupyter_template_interactive = "gs://broad-dsde-methods-long-reads/resources/MASseq_0.0.2/MAS-seq_QC_report_template-interactive.ipynb"
         File jupyter_template_static = "gs://broad-dsde-methods-long-reads/resources/MASseq_0.0.2/MAS-seq_QC_report_template-static.ipynb"
         File workflow_dot_file = "gs://broad-dsde-methods-long-reads/resources/MASseq_0.0.2/PB10xMasSeqArraySingleFlowcellv2.dot"
 
@@ -58,7 +57,6 @@ workflow PB10xMasSeqSingleFlowcellv2 {
 
         ref_flat_annotations : "RefFlat file containing genomic annotations (used for RNASeq metrics).  This file must match the reference to which the input data are aligned."
 
-        jupyter_template_interactive : "Jupyter notebook / ipynb file containing a template for the QC report which will contain interactive plots (such as those created with Bokeh and Plot.ly).  This should contain the same information as the jupyter_template_static file, but with static images."
         jupyter_template_static : "Jupyter notebook / ipynb file containing a template for the QC report which will contain static plots.  This should contain the same information as the jupyter_template_interactive file, but with static images."
         workflow_dot_file : "DOT file containing the representation of this WDL to be included in the QC reports.  This can be generated with womtool."
 
@@ -144,8 +142,11 @@ workflow PB10xMasSeqSingleFlowcellv2 {
                     map_preset = "splice"
             }
 
+            ## For some reason we need a LOT of memory for this.
+            ## Need to debug it or remove the alignment of CCS (non-split) reads:
             RuntimeAttr align_ccs_reads_runtime_attrs = object {
-                preemptible_tries:  0
+                mem_gb: 60,
+                preemptible_tries: 0
             }
             call AR.Minimap2 as AlignCCSReads {
                 input:
@@ -169,6 +170,9 @@ workflow PB10xMasSeqSingleFlowcellv2 {
                     mem_gb = 32
             }
         }
+
+        # Get ZMW Subread stats:
+        call PBUtils.CollectZmwSubreadStats { input: subreads = subread_bam, prefix = SM + "_zmw_subread_stats"}
 
         # Merge all sharded merged outputs of ExtractBoundedReadSectionsTask:
         call Utils.MergeFiles as MergeArrayElementSubShards_2 { input: files_to_merge = MergeArrayElementSubShards_1.merged_file, merged_file_name = "EBR_extracted_reads.fasta" }
@@ -299,32 +303,6 @@ workflow PB10xMasSeqSingleFlowcellv2 {
 
     ## NOTE: This assumes ONE file for both the raw input and the 10x array element stats!
     ##       This should be fixed in version 2.
-    call JUPYTER.PB10xMasSeqSingleFlowcellReport as GenerateInteractiveReport {
-        input:
-            notebook_template              = jupyter_template_interactive,
-
-            subreads_stats                 = CalcSamStatsOnInputBam.raw_stats[0],
-            ccs_reads_stats                = AlignedCCSMetrics.sam_stats_raw_stats,
-            array_elements_stats           = AlignedArrayElementMetrics.sam_stats_raw_stats,
-            ccs_report_file                = MergeAllCCSReports.report,
-
-            ccs_bam_file                   = MergeAllCCSBams.merged_bam,
-            array_element_bam_file         = MergeAlignedArrayElements.merged_bam,
-
-            ebr_element_marker_alignments  = MergeArrayElementMarkerAlignments_3.merged_file,
-            ebr_initial_section_alignments = MergeArrayElementInitialSections_3.merged_file,
-            ebr_final_section_alignments   = MergeArrayElementFinalSections_3.merged_file,
-            ebr_bounds_file                = boundaries_file,
-
-            ten_x_metrics_file             = Merge10XStats_2.merged_tsv,
-            rna_seq_metrics_file           = ArrayElementRnaSeqMetrics.rna_metrics,
-
-            workflow_dot_file              = workflow_dot_file,
-            prefix                         = "interactive"
-    }
-
-    ## NOTE: This assumes ONE file for both the raw input and the 10x array element stats!
-    ##       This should be fixed in version 2.
     call JUPYTER.PB10xMasSeqSingleFlowcellReport as GenerateStaticReport {
         input:
             notebook_template              = jupyter_template_static,
@@ -358,18 +336,7 @@ workflow PB10xMasSeqSingleFlowcellv2 {
 
     # TODO: Should make this iterate through all found bam files, not just the first one.  This seems to be the case for all workflows right now though...
 
-    # Finalize the notebooks:
-    String interactive_report_dir = metrics_out_dir + "/report_interactive"
-    call FF.FinalizeToDir as FinalizeInteractiveReport {
-        input:
-            files = [
-                GenerateInteractiveReport.populated_notebook,
-                GenerateInteractiveReport.html_report,
-                GenerateInteractiveReport.pdf_report
-            ],
-            outdir = interactive_report_dir,
-            keyfile = GenerateStaticReport.html_report
-    }
+    # Finalize the notebook:
     String static_report_dir = metrics_out_dir + "/report_static"
     call FF.FinalizeToDir as FinalizeStaticReport {
         input:
@@ -452,6 +419,20 @@ workflow PB10xMasSeqSingleFlowcellv2 {
         input:
             files = [ MergeAllCCSReports.report ],
             outdir = metrics_out_dir + "/ccs_metrics",
+            keyfile = GenerateStaticReport.html_report
+    }
+
+    call FF.FinalizeToDir as FinalizeZmwSubreadStats {
+        input:
+            files = CollectZmwSubreadStats.zmw_subread_stats,
+            outdir = metrics_out_dir + "/ccs_metrics",
+            keyfile = GenerateStaticReport.html_report
+    }
+
+    # Write out completion file so in the future we can be 100% sure that this run was good:
+    call FF.WriteCompletionFile {
+        input:
+            outdir = base_out_dir + "/",
             keyfile = GenerateStaticReport.html_report
     }
 }
