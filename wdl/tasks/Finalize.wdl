@@ -141,7 +141,7 @@ task WriteCompletionFile {
         completion_file="COMPLETED_AT_$(date +%Y%m%dT%H%M%S).txt"
         touch $completion_file
 
-        gsutil -m cp $completion_file ~{gcs_output_dir}
+        gsutil -m cp $completion_file ~{outdir}
     >>>
 
     #########################
@@ -155,12 +155,12 @@ task WriteCompletionFile {
         docker:             "us.gcr.io/broad-dsp-lrma/lr-finalize:0.1.2"
     }
     runtime {
-        cpu:                    runtime_attr.cpu_cores]
-        memory:                 runtime_attr.mem_gb] + " GiB"
-        disks: "local-disk " +  runtime_attr.disk_gb] + " HDD"
-        bootDiskSizeGb:         runtime_attr.boot_disk_gb]
-        preemptible:            runtime_attr.preemptible_tries]
-        maxRetries:             runtime_attr.max_retries]
-        docker:                 runtime_attr.docker]
+        cpu:                    runtime_attr.cpu_cores
+        memory:                 runtime_attr.mem_gb + " GiB"
+        disks: "local-disk " +  runtime_attr.disk_gb + " HDD"
+        bootDiskSizeGb:         runtime_attr.boot_disk_gb
+        preemptible:            runtime_attr.preemptible_tries
+        maxRetries:             runtime_attr.max_retries
+        docker:                 runtime_attr.docker
     }
 }

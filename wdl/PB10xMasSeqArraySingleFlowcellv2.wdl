@@ -172,7 +172,7 @@ workflow PB10xMasSeqSingleFlowcellv2 {
         }
 
         # Get ZMW Subread stats:
-        call PBUtils.CollectZmwSubreadStats { input: subreads = subread_bam, prefix = SM + "_zmw_subread_stats"}
+        call PB.CollectZmwSubreadStats { input: subreads = subread_bam, prefix = SM + "_zmw_subread_stats"}
 
         # Merge all sharded merged outputs of ExtractBoundedReadSectionsTask:
         call Utils.MergeFiles as MergeArrayElementSubShards_2 { input: files_to_merge = MergeArrayElementSubShards_1.merged_file, merged_file_name = "EBR_extracted_reads.fasta" }
