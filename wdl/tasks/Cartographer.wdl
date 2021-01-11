@@ -333,6 +333,8 @@ task SplitSequenceOnDelimiters {
 
         Float min_qual = 7.0
 
+        Array[String]? ignore_seqs
+
         String prefix = "approx_raw_subread_array_lengths"
 
         Int? max_read_length
@@ -351,6 +353,8 @@ task SplitSequenceOnDelimiters {
 
         min_qual : "[optional] Minimum quality for good alignment.  (Default: 7.0)"
 
+        ignore_seqs : "[optional] Sequences to ignore and not use as delimiters."
+
         prefix : "[optional] Base name for the output data file.  (Default: approx_raw_subread_array_lengths)"
 
         max_read_length : "[optional] The read length beyond which a read will not be processed."
@@ -368,6 +372,8 @@ task SplitSequenceOnDelimiters {
 
     # ------------------------------------------------
     # Process input args:
+
+    String ignore_seqs_arg = if defined(ignore_seqs) then " --ignore " else ""
 
     String log_file_name = "get_approx_raw_subread_array_lengths.log"
     String timing_output_file = "timingInformation.txt"
@@ -414,6 +420,7 @@ task SplitSequenceOnDelimiters {
         /usr/bin/time -v /cartographer/get_approx_raw_subread_array_lengths.py -v \
             -b ~{reads_file} \
             -d ~{delimiters_fasta} \
+            ~{ignore_seqs_arg}~{default="" sep=" --ignore " ignore_seqs} \
             -o ~{prefix}.tsv \
             --minqual ~{min_qual} \
             2>&1 | tee ~{log_file_name}

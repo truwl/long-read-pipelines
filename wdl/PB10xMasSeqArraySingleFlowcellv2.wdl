@@ -38,6 +38,8 @@ workflow PB10xMasSeqSingleFlowcellv2 {
         File jupyter_template_static = "gs://broad-dsde-methods-long-reads/resources/MASseq_0.0.2/MAS-seq_QC_report_template-static.ipynb"
         File workflow_dot_file = "gs://broad-dsde-methods-long-reads/resources/MASseq_0.0.2/PB10xMasSeqArraySingleFlowcellv2.dot"
 
+        Int min_ccs_passes = 2
+
         String? sample_name
     }
 
@@ -59,6 +61,8 @@ workflow PB10xMasSeqSingleFlowcellv2 {
 
         jupyter_template_static : "Jupyter notebook / ipynb file containing a template for the QC report which will contain static plots.  This should contain the same information as the jupyter_template_interactive file, but with static images."
         workflow_dot_file : "DOT file containing the representation of this WDL to be included in the QC reports.  This can be generated with womtool."
+
+        min_ccs_passes : "[optional] Minimum number of passes required for CCS to take place on a ZMW (Default: 2)."
 
         sample_name : "[optional] The name of the sample to associate with the data in this workflow."
     }
@@ -96,21 +100,47 @@ workflow PB10xMasSeqSingleFlowcellv2 {
                 input:
                     subreads = subreads,
                     preemptible_attempts = 0,
-                    min_passes = 2,
+                    min_passes = min_ccs_passes,
                     disk_space_scale_factor = 4,
                     mem_gb = 16
             }
 
-            # Get ZMW Subread stats here to shard them out wider and make it faster:
-            call PB.CollectZmwSubreadStats as CollectZmwSubreadStats_sharded{ input: subreads = subreads, prefix = SM + "_zmw_subread_stats"}
-
-            # Get approximate subread array lengths here:
-            call CART.GetApproxRawSubreadArrayLengths as GetApproxRawSubreadArrayLengths_sharded {
+            ## No more preemption on this sharding - takes too long otherwise.
+            RuntimeAttr subshard_raw_subreads_runtime_attrs = object {
+                preemptible_tries: 0
+            }
+            call Utils.ShardLongReadsWithCopy as SubshardRawSubreads {
                 input:
-                    reads_file = subreads,
-                    delimiters_fasta = segments_fasta,
-                    min_qual = 7.0,
-                    prefix = SM + "_approx_raw_subread_array_lengths"
+                    unmapped_files = [ subreads ],
+                    num_reads_per_split = 10000,
+                    runtime_attr_override = subshard_raw_subreads_runtime_attrs
+            }
+            scatter (corrected_shard in SubshardRawSubreads.unmapped_shards) {
+
+                # Get ZMW Subread stats here to shard them out wider and make it faster:
+                call PB.CollectZmwSubreadStats as CollectZmwSubreadStats_subsharded{ input: subreads = subreads, prefix = SM + "_zmw_subread_stats"}
+
+                # Get approximate subread array lengths here:
+                call CART.GetApproxRawSubreadArrayLengths as GetApproxRawSubreadArrayLengths_subsharded {
+                    input:
+                        reads_file = subreads,
+                        delimiters_fasta = segments_fasta,
+                        min_qual = 7.0,
+                        ignore_seqs = ["Poly_A", "Poly_T", "3_prime_TSO", "5_prime_TSO"],
+                        prefix = SM + "_approx_raw_subread_array_lengths"
+                }
+            }
+
+            # Merge our micro-shards of subread stats:
+            call Utils.MergeTsvFiles as MergeMicroShardedZmwSubreadStats {
+                input:
+                    tsv_files = CollectZmwSubreadStats_subsharded.zmw_subread_stats
+            }
+
+            # Merge the micro-sharded raw subread array element counts:
+            call Utils.MergeTsvFiles as MergeMicroShardedRawSubreadArrayElementCounts {
+                input:
+                    tsv_files = GetApproxRawSubreadArrayLengths_subsharded.approx_subread_array_lengths
             }
 
             # Shard these reads even wider so we can make sure we don't run out of memory:
@@ -192,16 +222,16 @@ workflow PB10xMasSeqSingleFlowcellv2 {
         call Utils.MergeFiles as MergeArrayElementInitialSections_2 { input: files_to_merge = MergeArrayElementInitialSections_1.merged_file, merged_file_name = "EBR_initial_sections.txt" }
         call Utils.MergeFiles as MergeArrayElementFinalSections_2 { input: files_to_merge = MergeArrayElementFinalSections_1.merged_file, merged_file_name = "EBR_final_sections.txt" }
 
-        # Merge the zmw subread stats:
+        # Merge the sharded zmw subread stats:
         call Utils.MergeTsvFiles as MergeShardedZmwSubreadStats {
             input:
-                tsv_files = CollectZmwSubreadStats_sharded.zmw_subread_stats
+                tsv_files = MergeMicroShardedZmwSubreadStats.merged_tsv
         }
 
-        # Merge the raw subread array element counts:
+        # Merge the sharded raw subread array element counts:
         call Utils.MergeTsvFiles as MergeShardedRawSubreadArrayElementCounts {
             input:
-                tsv_files = GetApproxRawSubreadArrayLengths_sharded.approx_subread_array_lengths
+                tsv_files = MergeMicroShardedRawSubreadArrayElementCounts.merged_tsv
         }
 
         # Merge the 10x stats:
