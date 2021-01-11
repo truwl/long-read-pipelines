@@ -14,10 +14,20 @@ import math
 import subprocess
 import tempfile
 
+from enum import Enum
+
 from collections import OrderedDict
 from collections import namedtuple
 
 ################################################################################
+
+
+class AlignmentAlgorithm(Enum):
+    """
+    Specifier for an alignment algorithm.
+    """
+    BWA_MEM = 1
+    BWA_ALN = 2
 
 # Min PL for an alignment to be kept as "good":
 # This should be equal to the base read quality.
@@ -42,6 +52,8 @@ CIGAR_ELEMENT_STRING_MAP = {
     pysam.CDIFF: "X"
 }
 STRING_CIGAR_ELEMENT_MAP = {v: k for (k, v) in CIGAR_ELEMENT_STRING_MAP.items()}
+
+RC_READ_NAME_IDENTIFIER = "_RC"
 
 ################################################################################
 
@@ -288,6 +300,9 @@ def get_processed_results_from_bwa_aln_file(file_path, minqual):
                 continue
 
             seq_name = read.query_name
+            if read.is_reverse:
+                seq_name = seq_name + RC_READ_NAME_IDENTIFIER
+
             bases = read_seqs[read.query_name]
 
             template_length = read.infer_read_length()
@@ -342,6 +357,184 @@ def get_processed_results_from_bwa_aln_file(file_path, minqual):
     return processed_results
 
 
+def get_processed_results_from_bwa_mem_file(file_path, minqual):
+    """
+    Ingests the given file and creates raw alignments from it.
+    :param file_path: Path to the sam file of a BWA MEM run.
+    :param minqual: Minimum quality for an alignment to be retained.
+    :return: A list of ProcessedAlignmentResult objects.
+    """
+
+    processed_results = []
+
+    # Only primary hits will have sequence information with them so we have to
+    # Read it off first.  There shouldn't be very many reads, so this is a little slow, but should be OK.
+    read_seqs = dict()
+    with pysam.AlignmentFile(file_path, 'r', check_sq=False) as f:
+        for read in f.fetch(until_eof=True):
+            if read.query_sequence:
+                read_seqs[read.query_name] = read.query_sequence
+
+    with pysam.AlignmentFile(file_path, 'r', check_sq=False) as f:
+        for read in f.fetch(until_eof=True):
+
+            if read.is_unmapped:
+                continue
+
+            seq_name = read.query_name
+            if read.is_reverse:
+                seq_name = seq_name + RC_READ_NAME_IDENTIFIER
+
+            bases = read_seqs[read.query_name]
+
+            template_length = read.infer_read_length()
+            qual_pl = get_qual_pl(read.get_tag("NM"), template_length)
+
+            # Get the leading and trailing clips so we can remove them from the aligned string:
+            leading_clips = 0
+            for e in read.cigartuples:
+                if e[0] == pysam.CSOFT_CLIP or e[0] == pysam.CHARD_CLIP:
+                    leading_clips += e[1]
+                else:
+                    break
+
+            trailing_clips = 0
+            for e in read.cigartuples[::-1]:
+                if e[0] == pysam.CSOFT_CLIP or e[0] == pysam.CHARD_CLIP:
+                    trailing_clips += e[1]
+                else:
+                    break
+
+            # Note - must adjust ref start/end pos to align properly with conventions from other aligners
+            #        (other aligner conventions: 1-based coordinates, inclusive end positions)
+            p = ProcessedAlignmentResult(
+                seq_name, bases, leading_clips, len(bases)-trailing_clips-1,
+                int(read.reference_start), int(read.reference_end-1),
+                template_length, tuple(read.cigartuples), qual_pl
+            )
+
+            # Check against thresholds to make sure we should report the alignment:
+            if qual_pl < minqual:
+                reason_string = f"qual too low ({qual_pl} < {minqual})"
+
+                LOGGER.debug("Target does not pass threshold: %s: %s (%s)", seq_name, reason_string, p)
+            else:
+                processed_results.append(p)
+
+    # Sort by the order in which they appear in the read.
+    # This is _VERY_IMPORTANT_ for finding the ordered regions in a following step.
+    processed_results.sort(key=lambda x: x.read_start_pos)
+
+    for r in processed_results:
+        LOGGER.debug("    %s", r)
+
+    return processed_results
+
+
+def create_alignment_with_bwa_mem(read_name, read_sequence, delimiter_dict, minqual, threads=1, log_spacing="    "):
+    """
+    Perform a BWA MEM 2 alignment on
+
+    :param read_name: name of the read to which to align delimiters
+    :param read_sequence: raw bases of a sequence to which to align the given delimiters
+    :param delimiter_dict: Dictionary of delimiter sequences to align to the given sequence
+    :param minqual: Minimum quality for an alignment to be retained.
+    :param threads: number of threads to use when aligning.
+    :param log_spacing: Spacing to precede any log statements.
+    :return: A list of ProcessedAlignmentResult objects.
+    """
+
+    out_file_name = "tmp.sam"
+
+    # Write sequences to tmp fasta file:
+    _, ref_file = tempfile.mkstemp()
+    _, seq_file = tempfile.mkstemp()
+    try:
+        LOGGER.debug("%sCreating tmp \"reference\" fasta file: %s", log_spacing, ref_file)
+        with open(ref_file, "w", encoding="ascii") as tmp:
+            tmp.write(f">{read_name}\n")
+            tmp.write(f"{read_sequence}\n")
+
+        bwa_index_args = ["/bwa-mem2-2.0pre2_x64-linux/bwa-mem2", "index", ref_file]
+        LOGGER.debug(
+            "%sRunning BWA Index on tmp file (%s): %s", log_spacing, ref_file, " ".join(bwa_index_args)
+        )
+        _ = subprocess.run(bwa_index_args, capture_output=True, check=True)
+
+        LOGGER.debug("%sCreating tmp known segment \"read\" fasta file: %s", log_spacing, seq_file)
+        seen_targets = set()
+        with open(seq_file, "w", encoding="ascii") as tmp:
+            for k,v in delimiter_dict.items():
+                if k not in seen_targets:
+                    tmp.write(f">{k}\n")
+                    tmp.write(f"{v}\n")
+                    seen_targets.add(k)
+
+        # LOGGER.debug("Contents of tmp \"reference\" fasta file:")
+        # with open(ref_file, "r") as f:
+        #     for l in f.readlines():
+        #         LOGGER.debug(l.rstrip())
+        #
+        # LOGGER.debug("Contents of known segment \"read\" fasta file:")
+        # with open(seq_file, "r") as f:
+        #     for l in f.readlines():
+        #         LOGGER.debug(l.rstrip())
+
+        bwa_mem_args = ["/bwa-mem2-2.0pre2_x64-linux/bwa-mem2", "mem",
+                        "-a",                # Output all found alignments for single-end or unpaired paired-end reads.
+                                             # These alignments will be flagged as secondary alignments.
+                        "-S",                # skip mate rescue
+                        "-P",                # skip pairing; mate rescue performed unless -S also in use
+                        "-k8",               # minimum seed length
+                        "-A", "1",           # Matching score.
+                        "-B", "4",           # Mismatch penalty.
+                                             #  The sequence error rate is approximately: {.75 * exp[-log(4) * B/A]}.
+                        "-O", "6,6",         # Gap open penalty.
+                        "-E", "1,1",         # gap extension penalty; a gap of size k cost '{-O} + {-E}*k'
+                        "-L", "5,5",         # penalty for 5'- and 3'-end clipping
+                        "-U", "17",          # penalty for an unpaired read pair
+                        "-T", "30",          # minimum score to output
+                        "-c", "1000",        # skip seeds with more than INT occurrences
+                        "-t", str(threads),
+                        "-o", out_file_name,
+                        ref_file, seq_file]
+        LOGGER.debug(
+            "%sRunning BWA Mem on tmp file (%s): %s", log_spacing, ref_file, " ".join(bwa_mem_args)
+        )
+        completed_process = subprocess.run(bwa_mem_args,
+                                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=True, text=True)
+
+        if LOGGER.isEnabledFor(logging.DEBUG):
+            LOGGER.debug("BWA Mem output:")
+            for l in completed_process.stdout.split("\n"):
+                LOGGER.debug(l)
+
+            with open(out_file_name, 'rb') as f:
+                LOGGER.debug("=" * 80)
+                LOGGER.debug("Raw BWA MEM Alignment:")
+                for line in f.readlines():
+                    LOGGER.debug("%s", line.decode("ascii").rstrip())
+                LOGGER.debug("=" * 80)
+
+        return get_processed_results_from_bwa_mem_file(out_file_name, minqual)
+
+    except subprocess.CalledProcessError as e:
+        LOGGER.error("Could not align with BWA Mem!")
+        LOGGER.error("Stdout: %s", e.stdout.decode("utf-8"))
+        LOGGER.error("Stderr: %s", e.stderr.decode("utf-8"))
+        raise e
+
+    finally:
+        os.remove(ref_file)
+        os.remove(seq_file)
+        try:
+            os.remove(out_file_name)
+            pass
+        except FileNotFoundError:
+            # If the alignment failed, we won't necessarily have an output file:
+            pass
+
+
 def get_array_element_alignments(args):
     """Get the stats from the given polymerase reads and dump them to the specified output file(s)."""
 
@@ -371,53 +564,11 @@ def get_array_element_alignments(args):
 
             for r in bam_file.fetch(until_eof=True):
 
+                LOGGER.debug(f"Processing read {num_reads+1}: {r.query_name}")
                 zmw = int(zmw_re.match(r.query_name).group(1))
                 if prev_zmw and zmw != prev_zmw:
-
-                    stats = dict()
-                    stats["mean"] = statistics.mean(zmw_read_lengths)
-                    stats["median"] = statistics.median(zmw_read_lengths)
-
-                    read_length_diffs = list(
-                        map(
-                            lambda x: (abs(x - stats["mean"]) + abs(x - stats["median"]))/2,
-                            zmw_read_lengths
-                        )
-                    )
-                    index_min = min(range(len(read_length_diffs)), key=read_length_diffs.__getitem__)
-
-                    ###########################################
-                    # Analyze read here:
-                    #######################
-                    LOGGER.info(f"ZMW {zmw}: \"Best\" subread (of {len(zmw_read_lengths)}): {subread_names[index_min]}")
-                    LOGGER.debug(f"ZMW {zmw}: \"Best\" subread seq: {subread_seqs[index_min]}")
-
-                    processed_results = create_alignment_with_bwa_aln(
-                        subread_names[index_min],
-                        subread_seqs[index_min],
-                        mas_seq_delimiters,
-                        minqual=args.minqual
-                    )
-
-                    concise_alignments = ",".join([
-                            f"{p.seq_name}"
-                            f"[@{p.read_start_pos}"
-                            f"q{p.overall_quality}"
-                            f"b({(p.target_end_index - p.target_start_index)}/{len(mas_seq_delimiters[p.seq_name])})"
-                            f"c{100.0*(p.target_end_index - p.target_start_index)/p.template_length:2.0f}]"
-                            for p in processed_results
-                        ])
-
-                    # Write our output to the file:
-                    out_line = f"{zmw}\t" + \
-                               f"{len(zmw_read_lengths)}\t" + \
-                               f"{subread_names[index_min]}\t" + \
-                               f"{len(processed_results)}\t" + \
-                               f"{','.join([p.seq_name for p in processed_results])}\t" + \
-                               f"{concise_alignments}\n"
-
-                    LOGGER.debug(f"Results: {out_line}")
-                    out_file.write(out_line)
+                    characterize_representative_subread(args, mas_seq_delimiters, out_file, subread_names, subread_seqs,
+                                                        zmw_read_lengths)
 
                     ###########################################
                     # Reset for next ZMW:
@@ -438,53 +589,83 @@ def get_array_element_alignments(args):
 
             ###########################################
             # Now we have to handle the last ZMW:
-            # TODO: Remove duplicated code:
             if len(zmw_read_lengths) > 0:
-                stats = dict()
-                stats["mean"] = statistics.mean(zmw_read_lengths)
-                stats["median"] = statistics.median(zmw_read_lengths)
-
-                read_length_diffs = list(
-                    map(
-                        lambda x: (abs(x - stats["mean"]) + abs(x - stats["median"])) / 2,
-                        zmw_read_lengths
-                    )
-                )
-                index_min = min(range(len(read_length_diffs)), key=read_length_diffs.__getitem__)
-
-                LOGGER.info(f"ZMW {zmw}: \"Best\" subread (of {len(zmw_read_lengths)}): {subread_names[index_min]}")
-                LOGGER.debug(f"ZMW {zmw}: \"Best\" subread seq: {subread_seqs[index_min]}")
-
-                processed_results = create_alignment_with_bwa_aln(
-                    subread_names[index_min],
-                    subread_seqs[index_min],
-                    mas_seq_delimiters,
-                    minqual=args.minqual
-                )
-
-                concise_alignments = ",".join([
-                    f"{p.seq_name}"
-                    f"[@{p.read_start_pos}"
-                    f"q{p.overall_quality}"
-                    f"b({(p.target_end_index - p.target_start_index)}/{len(mas_seq_delimiters[p.seq_name])})"
-                    f"c{100.0*(p.target_end_index - p.target_start_index)/p.template_length:2.0f}]"
-                    for p in processed_results
-                ])
-
-                # Write our output to the file:
-                out_line = f"{zmw}\t" + \
-                           f"{len(zmw_read_lengths)}\t" + \
-                           f"{subread_names[index_min]}\t" + \
-                           f"{len(processed_results)}\t" + \
-                           f"{','.join([p.seq_name for p in processed_results])}\t" + \
-                           f"{concise_alignments}\n"
-
-                LOGGER.debug(f"Results: {out_line}")
-                out_file.write(out_line)
+                characterize_representative_subread(args, mas_seq_delimiters, out_file, subread_names, subread_seqs,
+                                                    zmw_read_lengths)
 
         LOGGER.info(f"Total reads processed: {num_reads}")
 
+
+def characterize_representative_subread(args, mas_seq_delimiters, out_file, subread_names, subread_seqs,
+                                        zmw_read_lengths):
+    stats = dict()
+    stats["mean"] = statistics.mean(zmw_read_lengths)
+    stats["median"] = statistics.median(zmw_read_lengths)
+    read_length_diffs = list(
+        map(
+            lambda x: (abs(x - stats["mean"]) + abs(x - stats["median"])) / 2,
+            zmw_read_lengths
+        )
+    )
+    index_min = min(range(len(read_length_diffs)), key=read_length_diffs.__getitem__)
+    ###########################################
+    # Analyze read here:
+    #######################
+    LOGGER.info(f"ZMW {zmw}: \"Best\" subread (of {len(zmw_read_lengths)}): {subread_names[index_min]}")
+    LOGGER.debug(f"ZMW {zmw}: \"Best\" subread seq: {subread_seqs[index_min]}")
+
+    # Perform an alignment:
+    # TODO: Make the enums contain the alignment functions as in Java to streamline this if statement.
+    if args.aligner == AlignmentAlgorithm.BWA_ALN.name:
+        processed_results = create_alignment_with_bwa_aln(
+            subread_names[index_min],
+            subread_seqs[index_min],
+            mas_seq_delimiters,
+            minqual=args.minqual
+        )
+    else:
+        processed_results = create_alignment_with_bwa_mem(
+            subread_names[index_min],
+            subread_seqs[index_min],
+            mas_seq_delimiters,
+            minqual=args.minqual
+        )
+
+    # Format our output all pretty:
+    concise_alignments = ",".join([
+        f"{p.seq_name}"
+        f"[@{p.read_start_pos}"
+        f"q{p.overall_quality}"
+        f"b({(p.target_end_index - p.target_start_index)}/{len(mas_seq_delimiters[p.seq_name])})"
+        f"c{100.0*(p.target_end_index - p.target_start_index)/p.template_length:2.0f}]"
+        for p in processed_results
+    ])
+
+    # Write our output to the file:
+    out_line = f"{zmw}\t" + \
+               f"{len(zmw_read_lengths)}\t" + \
+               f"{subread_names[index_min]}\t" + \
+               f"{len(processed_results)}\t" + \
+               f"{','.join([p.seq_name for p in processed_results])}\t" + \
+               f"{concise_alignments}\n"
+
+    # Write our output:
+    LOGGER.debug(f"Results: {out_line}")
+    out_file.write(out_line)
+
+
 ################################################################################
+
+
+def validate_input_args(args):
+    """Semantically / syntactically validates input args."""
+    try:
+        alignment_algorithm = AlignmentAlgorithm[args.aligner]
+    except KeyError:
+        LOGGER.error("Error: You must provide a valid alignment algorithm.  Options are: %s",
+                     ", ".join([e.name for e in AlignmentAlgorithm]))
+        sys.exit(1)
+    LOGGER.info("Alignment Algorithm: %s", alignment_algorithm.name)
 
 
 def main(raw_args):
@@ -528,6 +709,15 @@ def main(raw_args):
         required=False,
     )
 
+    parser.add_argument(
+        "-A",
+        "--aligner",
+        help="Use the given aligner.  [" + ", ".join([e.name for e in AlignmentAlgorithm]) + "]",
+        type=str,
+        default=AlignmentAlgorithm.BWA_ALN.name,
+        required=False
+    )
+
     verbosity_group = parser.add_mutually_exclusive_group()
     verbosity_group.add_argument(
         "-q", "--quiet", help="silence logging except errors", action="store_true"
@@ -552,6 +742,9 @@ def main(raw_args):
     for name, val in vars(args).items():
         LOGGER.info("    %s = %s", name, val)
     LOGGER.info("Log level set to: %s", logging.getLevelName(logging.getLogger().level))
+
+    # Validate our input args:
+    validate_input_args(args)
 
     # Call our main method:
     get_array_element_alignments(args)
