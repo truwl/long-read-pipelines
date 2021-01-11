@@ -195,13 +195,13 @@ workflow PB10xMasSeqSingleFlowcellv2 {
         # Merge the zmw subread stats:
         call Utils.MergeTsvFiles as MergeShardedZmwSubreadStats {
             input:
-                tsv_files = CollectZmwSubreadStats_sharded.merged_tsv
+                tsv_files = CollectZmwSubreadStats_sharded.zmw_subread_stats
         }
 
         # Merge the raw subread array element counts:
         call Utils.MergeTsvFiles as MergeShardedRawSubreadArrayElementCounts {
             input:
-                tsv_files = GetApproxRawSubreadArrayLengths_sharded.merged_tsv
+                tsv_files = GetApproxRawSubreadArrayLengths_sharded.approx_subread_array_lengths
         }
 
         # Merge the 10x stats:
@@ -347,7 +347,7 @@ workflow PB10xMasSeqSingleFlowcellv2 {
             ebr_bounds_file                  = boundaries_file,
 
             zmw_subread_stats_file           = MergeShardedZmwSubreadStats.merged_tsv[0],
-            approx_raw_subread_array_lengths = GetApproxRawSubreadArrayLengths_sharded.merged_tsv[0],
+            approx_raw_subread_array_lengths = MergeShardedRawSubreadArrayElementCounts.merged_tsv[0],
 
             ten_x_metrics_file               = Merge10XStats_2.merged_tsv,
             rna_seq_metrics_file             = ArrayElementRnaSeqMetrics.rna_metrics,
@@ -462,7 +462,7 @@ workflow PB10xMasSeqSingleFlowcellv2 {
 
     call FF.FinalizeToDir as FinalizeRawSubreadArrayElementCounts {
         input:
-            files = GetApproxRawSubreadArrayLengths_sharded.merged_tsv,
+            files = MergeShardedRawSubreadArrayElementCounts.merged_tsv,
             outdir = metrics_out_dir + "/array_stats",
             keyfile = GenerateStaticReport.html_report
     }
