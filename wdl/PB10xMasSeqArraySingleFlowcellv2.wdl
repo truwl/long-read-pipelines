@@ -101,6 +101,18 @@ workflow PB10xMasSeqSingleFlowcellv2 {
                     mem_gb = 16
             }
 
+            # Get ZMW Subread stats here to shard them out wider and make it faster:
+            call PB.CollectZmwSubreadStats as CollectZmwSubreadStats_sharded{ input: subreads = subreads, prefix = SM + "_zmw_subread_stats"}
+
+            # Get approximate subread array lengths here:
+            call CART.GetApproxRawSubreadArrayLengths as GetApproxRawSubreadArrayLengths_sharded{
+                input:
+                    reads_file = subreads,
+                    delimiters_fasta = segments_fasta,
+                    min_qual = 7.0,
+                    prefix = SM + "_approx_raw_subread_array_lengths"
+            }
+
             # Shard these reads even wider so we can make sure we don't run out of memory:
             call Utils.ShardLongReadsWithCopy as ShardCorrectedReads { input: unmapped_files = [ CCS.consensus ], num_reads_per_split = 20000 }
 
@@ -127,9 +139,6 @@ workflow PB10xMasSeqSingleFlowcellv2 {
 #                        min_qual            = 5.0,
 #                        mem_gb              = 8
 #                }
-
-                # Get ZMW Subread stats here to shard them out wider and make it faster:
-                call PB.CollectZmwSubreadStats as CollectZmwSubreadStats_Microsharded{ input: subreads = corrected_shard, prefix = SM + "_zmw_subread_stats"}
             }
 
             # Merge all outputs of ExtractBoundedReadSectionsTask:
@@ -138,12 +147,6 @@ workflow PB10xMasSeqSingleFlowcellv2 {
             call Utils.MergeFiles as MergeArrayElementMarkerAlignments_1 { input: files_to_merge = ExtractBoundedReadSectionsTask.raw_marker_alignments, merged_file_name = "EBR_marker_alignments.txt" }
             call Utils.MergeFiles as MergeArrayElementInitialSections_1 { input: files_to_merge = ExtractBoundedReadSectionsTask.initial_section_alignments, merged_file_name = "EBR_initial_sections.txt" }
             call Utils.MergeFiles as MergeArrayElementFinalSections_1 { input: files_to_merge = ExtractBoundedReadSectionsTask.final_section_alignments, merged_file_name = "EBR_final_sections.txt" }
-
-            # Merge our "micro-sharded" zmw subread stats:
-            call Utils.MergeTsvFiles as MergeMicroshardedZmwSubreadStats {
-                input:
-                    tsv_files = CollectZmwSubreadStats_Microsharded.zmw_subread_stats
-            }
 
             call AR.Minimap2 as AlignArrayElements {
                 input:
@@ -192,7 +195,13 @@ workflow PB10xMasSeqSingleFlowcellv2 {
         # Merge the zmw subread stats:
         call Utils.MergeTsvFiles as MergeShardedZmwSubreadStats {
             input:
-                tsv_files = MergeMicroshardedZmwSubreadStats.merged_tsv
+                tsv_files = CollectZmwSubreadStats_sharded.merged_tsv
+        }
+
+        # Merge the raw subread array element counts:
+        call Utils.MergeTsvFiles as MergeShardedRawSubreadArrayElementCounts {
+            input:
+                tsv_files = GetApproxRawSubreadArrayLengths_sharded.merged_tsv
         }
 
         # Merge the 10x stats:
@@ -322,30 +331,31 @@ workflow PB10xMasSeqSingleFlowcellv2 {
     }
     call JUPYTER.PB10xMasSeqSingleFlowcellReport as GenerateStaticReport {
         input:
-            notebook_template              = jupyter_template_static,
+            notebook_template                = jupyter_template_static,
 
-            subreads_stats                 = CalcSamStatsOnInputBam.raw_stats[0],
-            ccs_reads_stats                = AlignedCCSMetrics.sam_stats_raw_stats,
-            array_elements_stats           = AlignedArrayElementMetrics.sam_stats_raw_stats,
-            ccs_report_file                = MergeAllCCSReports.report,
+            subreads_stats                   = CalcSamStatsOnInputBam.raw_stats[0],
+            ccs_reads_stats                  = AlignedCCSMetrics.sam_stats_raw_stats,
+            array_elements_stats             = AlignedArrayElementMetrics.sam_stats_raw_stats,
+            ccs_report_file                  = MergeAllCCSReports.report,
 
-            ccs_bam_file                   = MergeAllCCSBams.merged_bam,
-            array_element_bam_file         = MergeAlignedArrayElements.merged_bam,
+            ccs_bam_file                     = MergeAllCCSBams.merged_bam,
+            array_element_bam_file           = MergeAlignedArrayElements.merged_bam,
 
-            ebr_element_marker_alignments  = MergeArrayElementMarkerAlignments_3.merged_file,
-            ebr_initial_section_alignments = MergeArrayElementInitialSections_3.merged_file,
-            ebr_final_section_alignments   = MergeArrayElementFinalSections_3.merged_file,
-            ebr_bounds_file                = boundaries_file,
+            ebr_element_marker_alignments    = MergeArrayElementMarkerAlignments_3.merged_file,
+            ebr_initial_section_alignments   = MergeArrayElementInitialSections_3.merged_file,
+            ebr_final_section_alignments     = MergeArrayElementFinalSections_3.merged_file,
+            ebr_bounds_file                  = boundaries_file,
 
-            zmw_subread_stats_file         = MergeShardedZmwSubreadStats.merged_tsv[0],
+            zmw_subread_stats_file           = MergeShardedZmwSubreadStats.merged_tsv[0],
+            approx_raw_subread_array_lengths = GetApproxRawSubreadArrayLengths_sharded.merged_tsv[0],
 
-            ten_x_metrics_file             = Merge10XStats_2.merged_tsv,
-            rna_seq_metrics_file           = ArrayElementRnaSeqMetrics.rna_metrics,
+            ten_x_metrics_file               = Merge10XStats_2.merged_tsv,
+            rna_seq_metrics_file             = ArrayElementRnaSeqMetrics.rna_metrics,
 
-            workflow_dot_file              = workflow_dot_file,
-            prefix                         = "static",
+            workflow_dot_file                = workflow_dot_file,
+            prefix                           = "static",
 
-            runtime_attr_override          = create_report_runtime_attrs,
+            runtime_attr_override            = create_report_runtime_attrs,
     }
 
     ##########
@@ -447,6 +457,13 @@ workflow PB10xMasSeqSingleFlowcellv2 {
         input:
             files = MergeShardedZmwSubreadStats.merged_tsv,
             outdir = metrics_out_dir + "/ccs_metrics",
+            keyfile = GenerateStaticReport.html_report
+    }
+
+    call FF.FinalizeToDir as FinalizeRawSubreadArrayElementCounts {
+        input:
+            files = GetApproxRawSubreadArrayLengths_sharded.merged_tsv,
+            outdir = metrics_out_dir + "/array_stats",
             keyfile = GenerateStaticReport.html_report
     }
 

@@ -333,7 +333,7 @@ task SplitSequenceOnDelimiters {
 
         Float min_qual = 7.0
 
-        String base_out_name = "approx_raw_subread_array_lengths"
+        String prefix = "approx_raw_subread_array_lengths"
 
         Int? max_read_length
         Int? min_bases
@@ -351,7 +351,7 @@ task SplitSequenceOnDelimiters {
 
         min_qual : "[optional] Minimum quality for good alignment.  (Default: 7.0)"
 
-        base_out_name : "[optional] Base name for the output data file.  (Default: approx_raw_subread_array_lengths)"
+        prefix : "[optional] Base name for the output data file.  (Default: approx_raw_subread_array_lengths)"
 
         max_read_length : "[optional] The read length beyond which a read will not be processed."
         min_bases : "[optional] Minimum number of bases for an alignment to be retained."
@@ -414,7 +414,7 @@ task SplitSequenceOnDelimiters {
         /usr/bin/time -v /cartographer/get_approx_raw_subread_array_lengths.py -v \
             -b ~{reads_file} \
             -d ~{delimiters_fasta} \
-            -o ~{base_out_name}.tsv \
+            -o ~{prefix}.tsv \
             --minqual ~{min_qual} \
             2>&1 | tee ~{log_file_name}
 
@@ -458,7 +458,7 @@ task SplitSequenceOnDelimiters {
     # Outputs:
     output {
       # Default output file name:
-      File approx_subread_array_lengths = "~{base_out_name}.tsv"
+      File approx_subread_array_lengths = "~{prefix}.tsv"
       File log_file                     = "${log_file_name}"
       File timing_info                  = "${timing_output_file}"
       File memory_log                   = "${memory_log_file}"

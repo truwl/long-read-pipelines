@@ -27,6 +27,7 @@ task PB10xMasSeqSingleFlowcellReport {
         File ebr_bounds_file
 
         File zmw_subread_stats_file
+        File approx_raw_subread_array_lengths
 
         File ten_x_metrics_file
         File rna_seq_metrics_file
@@ -55,6 +56,7 @@ task PB10xMasSeqSingleFlowcellReport {
         ebr_bounds_file : "Text file containing two comma-separated known segment names on each line.  These entries define delimited sections that were extracted from the reads and treated as individual array elements."
 
         zmw_subread_stats_file : "File containing statistics about the subreads from each ZMW (created by collect_zmw_subread_stats.py in the PBUtils docker container)."
+        approx_raw_subread_array_lengths : "File containing the approximate array length information from the raw (pre-ccs) subreads file  (created by get_approx_raw_subread_array_lengths.py in the Cartographer docker container)."
 
         ten_x_metrics_file : "Stats file from the 10x tool run for the data in this MASSeq run."
         rna_seq_metrics_file : "Picard CollectRnaSeqMetrics metrics file created from the aligned MASSeq array elements."
@@ -123,6 +125,7 @@ task PB10xMasSeqSingleFlowcellReport {
         echo "~{ebr_bounds_file}" >> mas-seq_qc_inputs.config
 
         echo "~{zmw_subread_stats_file}" >> mas-seq_qc_inputs.config
+        echo "~{approx_raw_subread_array_lengths}" >> mas-seq_qc_inputs.config
 
         echo "~{ten_x_metrics_file}" >> mas-seq_qc_inputs.config
         echo "~{rna_seq_metrics_file}" >> mas-seq_qc_inputs.config
