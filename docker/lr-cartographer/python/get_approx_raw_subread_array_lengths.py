@@ -512,6 +512,7 @@ def create_alignment_with_bwa_mem(read_name, read_sequence, delimiter_dict, minq
                         "-U", "17",          # penalty for an unpaired read pair
                         "-T", "30",          # minimum score to output
                         "-c", "1000",        # skip seeds with more than INT occurrences
+                        #"-h", "1,999",        # Output any matches beyond the first in XE tags.  We want this so we can simply characterize the read.
                         "-t", str(threads),
                         "-o", out_file_name,
                         ref_file, seq_file]
@@ -560,10 +561,15 @@ def get_array_element_alignments(args):
 
     # Filter out any delimiters that are the reverse complement of others:
     # (this will take care of the case where we have a poly-A and poly-T defined in our delimiters)
+    if args.ignore:
+        LOGGER.info(f"Ignoring the following sequences: {args.ignore}")
+    
     rc_mas_seq_delimiters = [reverse_complement(d) for d in mas_seq_delimiters.values()]
     final_delimiters = dict()
     final_delimiter_set = set()
     for k,v in mas_seq_delimiters.items():
+        if args.ignore and k in args.ignore:
+            continue
         if v in rc_mas_seq_delimiters:
             if reverse_complement(v) not in final_delimiter_set:
                 final_delimiters[k] = v
@@ -754,6 +760,14 @@ def main(raw_args):
         help="Use the given aligner.  [" + ", ".join([e.name for e in AlignmentAlgorithm]) + "]",
         type=str,
         default=AlignmentAlgorithm.BWA_ALN.name,
+        required=False
+    )
+
+    parser.add_argument(
+        "-I",
+        "--ignore",
+        help="Ignore the given delimiters.",
+        action='append',
         required=False
     )
 
