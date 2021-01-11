@@ -353,7 +353,7 @@ def get_array_element_alignments(args):
     # Print header:
     with open(args.outfile, 'w') as out_file:
 
-        out_file.write("\t".join(['zmw', 'representative_subread'] + stat_names +
+        out_file.write("\t".join(['zmw', 'num_subreads', 'representative_subread'] + stat_names +
                                  ['array_composition', 'concise_alignment_info'])
                        )
         out_file.write("\n")
@@ -410,6 +410,7 @@ def get_array_element_alignments(args):
 
                     # Write our output to the file:
                     out_line = f"{zmw}\t" + \
+                               f"{len(zmw_read_lengths)}\t" + \
                                f"{subread_names[index_min]}\t" + \
                                f"{len(processed_results)}\t" + \
                                f"{','.join([p.seq_name for p in processed_results])}\t" + \
@@ -472,6 +473,7 @@ def get_array_element_alignments(args):
 
                 # Write our output to the file:
                 out_line = f"{zmw}\t" + \
+                           f"{len(zmw_read_lengths)}\t" + \
                            f"{subread_names[index_min]}\t" + \
                            f"{len(processed_results)}\t" + \
                            f"{','.join([p.seq_name for p in processed_results])}\t" + \
