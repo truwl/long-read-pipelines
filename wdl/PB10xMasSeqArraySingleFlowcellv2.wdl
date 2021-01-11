@@ -105,7 +105,7 @@ workflow PB10xMasSeqSingleFlowcellv2 {
             call PB.CollectZmwSubreadStats as CollectZmwSubreadStats_sharded{ input: subreads = subreads, prefix = SM + "_zmw_subread_stats"}
 
             # Get approximate subread array lengths here:
-            call CART.GetApproxRawSubreadArrayLengths as GetApproxRawSubreadArrayLengths_sharded{
+            call CART.GetApproxRawSubreadArrayLengths as GetApproxRawSubreadArrayLengths_sharded {
                 input:
                     reads_file = subreads,
                     delimiters_fasta = segments_fasta,

@@ -450,8 +450,8 @@ def get_array_element_alignments(args):
                 )
                 index_min = min(range(len(read_length_diffs)), key=read_length_diffs.__getitem__)
 
-                LOGGER.info(f"ZMW {zmw} \"Best\" subread: {subread_names[index_min]}")
-                LOGGER.debug(f"ZMW {zmw} \"Best\" subread seq: {subread_seqs[index_min]}")
+                LOGGER.info(f"ZMW {zmw}: \"Best\" subread (of {len(zmw_read_lengths)}): {subread_names[index_min]}")
+                LOGGER.debug(f"ZMW {zmw}: \"Best\" subread seq: {subread_seqs[index_min]} ")
 
                 processed_results = create_alignment_with_bwa_aln(
                     subread_names[index_min],
