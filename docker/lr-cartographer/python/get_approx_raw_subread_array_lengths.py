@@ -560,9 +560,18 @@ def get_array_element_alignments(args):
 
     # Filter out any delimiters that are the reverse complement of others:
     # (this will take care of the case where we have a poly-A and poly-T defined in our delimiters)
-    print(mas_seq_delimiters)
     rc_mas_seq_delimiters = [reverse_complement(d) for d in mas_seq_delimiters.values()]
-    mas_seq_delimiters = {k:v for (k,v) in mas_seq_delimiters.items() if v in rc_mas_seq_delimiters}
+    final_delimiters = dict()
+    final_delimiter_set = set()
+    for k,v in mas_seq_delimiters.items():
+        if v in rc_mas_seq_delimiters:
+            if reverse_complement(v) not in final_delimiter_set:
+                final_delimiters[k] = v
+                final_delimiter_set.add(v)
+        else:
+            final_delimiters[k] = v
+            final_delimiter_set.add(v)
+    mas_seq_delimiters = final_delimiters
 
     stat_names = ['num_array_elements']
 
