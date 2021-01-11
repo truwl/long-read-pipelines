@@ -29,6 +29,20 @@ MAX_REPORTED_ALIGNMENT_PL = 60
 # Minimum reported PL quality value (will override lower values):
 MIN_REPORTED_ALIGNMENT_PL = 0
 
+CIGAR_ELEMENT_STRING_MAP = {
+    pysam.CDEL: "D",
+    pysam.CMATCH: "M",
+    pysam.CBACK: "B",
+    pysam.CINS: "I",
+    pysam.CPAD: "P",
+    pysam.CEQUAL: "=",
+    pysam.CSOFT_CLIP: "S",
+    pysam.CHARD_CLIP: "H",
+    pysam.CREF_SKIP: "N",
+    pysam.CDIFF: "X"
+}
+STRING_CIGAR_ELEMENT_MAP = {v: k for (k, v) in CIGAR_ELEMENT_STRING_MAP.items()}
+
 ################################################################################
 
 
@@ -70,6 +84,20 @@ def configure_logging(args):
 
 
 ################################################################################
+
+
+def cigar_tuple_to_string(cigar_tuples):
+    """
+    Converts a given list of cigar tuples to a string.
+    :param cigar_tuples: list of tuples, each containing a cigar element and count.
+    :return: A string representing the given cigar tuple list.
+    """
+
+    cigar_string_elements = []
+    for element, count in cigar_tuples:
+        cigar_string_elements.append(f"{count}{CIGAR_ELEMENT_STRING_MAP[element]}")
+
+    return "".join(cigar_string_elements)
 
 
 def get_qual_pl(num_errors, seq_length):
@@ -143,15 +171,15 @@ def create_alignment_with_bwa_aln(read_name, read_sequence, delimiter_dict, minq
                     tmp.write(f"{v}\n")
                     seen_targets.add(k)
 
-        LOGGER.debug("Contents of tmp \"reference\" fasta file:")
-        with open(ref_file, "r") as f:
-            for l in f.readlines():
-                LOGGER.debug(l.rstrip())
-
-        LOGGER.debug("Contents of known segment \"read\" fasta file:")
-        with open(seq_file, "r") as f:
-            for l in f.readlines():
-                LOGGER.debug(l.rstrip())
+        # LOGGER.debug("Contents of tmp \"reference\" fasta file:")
+        # with open(ref_file, "r") as f:
+        #     for l in f.readlines():
+        #         LOGGER.debug(l.rstrip())
+        #
+        # LOGGER.debug("Contents of known segment \"read\" fasta file:")
+        # with open(seq_file, "r") as f:
+        #     for l in f.readlines():
+        #         LOGGER.debug(l.rstrip())
 
         # Run the alignment:
         bwa_aln_args = [
@@ -182,7 +210,7 @@ def create_alignment_with_bwa_aln(read_name, read_sequence, delimiter_dict, minq
         # Convert the alignment to sam file:
         bwa_samse_args = [
             "/bwa/bwa", "samse",
-            f"-n {len(target_sequences)}",  # Maximum number of alignments to output in the XA tag for
+            f"-n {len(delimiter_dict)}",  # Maximum number of alignments to output in the XA tag for
                                             # reads paired properly. If a read has more than INT hits, the
                                             # XA tag will not be written. [3]
             f"-f{out_file_name}",
@@ -325,7 +353,9 @@ def get_array_element_alignments(args):
     # Print header:
     with open(args.outfile, 'w') as out_file:
 
-        out_file.write("\t".join(['zmw'] + stat_names + ['array_composition', 'concise_alignment_info']))
+        out_file.write("\t".join(['zmw', 'representative_subread'] + stat_names +
+                                 ['array_composition', 'concise_alignment_info'])
+                       )
         out_file.write("\n")
 
         with pysam.AlignmentFile(args.bam, 'rb', check_sq=False) as bam_file:
@@ -368,24 +398,24 @@ def get_array_element_alignments(args):
                         minqual=args.minqual
                     )
 
-                    #     "ProcessedAlignmentResult", ["seq_name", "alignment_string", "target_start_index", "target_end_index",
-                    #                                  "read_start_pos", "read_end_pos", "template_length", "cigar", "overall_quality"]
-
                     concise_alignments = ",".join([
                             f"{p.seq_name}"
                             f"[@{p.read_start_pos}"
                             f"q{p.overall_quality}"
+                            f"b({(p.target_end_index - p.target_start_index)}/{len(mas_seq_delimiters[p.seq_name])})"
                             f"c{100.0*(p.target_end_index - p.target_start_index)/p.template_length:2.0f}]"
                             for p in processed_results
                         ])
 
                     # Write our output to the file:
-                    out_file.write(
-                        f"{zmw}\t"
-                        f"{len(processed_results)}\t"
-                        f"{','.join([p.seq_name for p in processed_results])}"
-                        f"{concise_alignments}\n"
-                    )
+                    out_line = f"{zmw}\t" + \
+                               f"{subread_names[index_min]}\t" + \
+                               f"{len(processed_results)}\t" + \
+                               f"{','.join([p.seq_name for p in processed_results])}\t" + \
+                               f"{concise_alignments}\n"
+
+                    LOGGER.debug(f"Results: {out_line}")
+                    out_file.write(out_line)
 
                     ###########################################
                     # Reset for next ZMW:
