@@ -567,8 +567,8 @@ def get_array_element_alignments(args):
                 LOGGER.debug(f"Processing read {num_reads+1}: {r.query_name}")
                 zmw = int(zmw_re.match(r.query_name).group(1))
                 if prev_zmw and zmw != prev_zmw:
-                    characterize_representative_subread(args, mas_seq_delimiters, out_file, subread_names, subread_seqs,
-                                                        zmw_read_lengths)
+                    characterize_representative_subread(zmw, args, mas_seq_delimiters, out_file, subread_names,
+                                                        subread_seqs, zmw_read_lengths)
 
                     ###########################################
                     # Reset for next ZMW:
@@ -590,13 +590,13 @@ def get_array_element_alignments(args):
             ###########################################
             # Now we have to handle the last ZMW:
             if len(zmw_read_lengths) > 0:
-                characterize_representative_subread(args, mas_seq_delimiters, out_file, subread_names, subread_seqs,
-                                                    zmw_read_lengths)
+                characterize_representative_subread(zmw, args, mas_seq_delimiters, out_file, subread_names,
+                                                    subread_seqs, zmw_read_lengths)
 
         LOGGER.info(f"Total reads processed: {num_reads}")
 
 
-def characterize_representative_subread(args, mas_seq_delimiters, out_file, subread_names, subread_seqs,
+def characterize_representative_subread(zmw, args, mas_seq_delimiters, out_file, subread_names, subread_seqs,
                                         zmw_read_lengths):
     stats = dict()
     stats["mean"] = statistics.mean(zmw_read_lengths)
@@ -615,7 +615,7 @@ def characterize_representative_subread(args, mas_seq_delimiters, out_file, subr
     LOGGER.debug(f"ZMW {zmw}: \"Best\" subread seq: {subread_seqs[index_min]}")
 
     # Perform an alignment:
-    # TODO: Make the enums contain the alignment functions as in Java to streamline this if statement.
+    # TODO: Make the enums contain the alignment functions as in Java 8 to streamline this if statement.
     if args.aligner == AlignmentAlgorithm.BWA_ALN.name:
         processed_results = create_alignment_with_bwa_aln(
             subread_names[index_min],
