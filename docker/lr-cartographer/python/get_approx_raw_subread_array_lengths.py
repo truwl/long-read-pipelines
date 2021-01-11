@@ -55,6 +55,13 @@ STRING_CIGAR_ELEMENT_MAP = {v: k for (k, v) in CIGAR_ELEMENT_STRING_MAP.items()}
 
 RC_READ_NAME_IDENTIFIER = "_RC"
 
+# IUPAC RC's from: http://arep.med.harvard.edu/labgc/adnan/projects/Utilities/revcomp.html
+# and https://www.dnabaser.com/articles/IUPAC%20ambiguity%20codes.html
+RC_BASE_MAP = {"N": "N", "A": "T", "T": "A", "G": "C", "C": "G", "Y": "R", "R": "Y", "S": "S", "W": "W", "K": "M",
+               "M": "K", "B": "V", "V": "B", "D": "H", "H": "D", "n": "n", "a": "t", "t": "a", "g": "c", "c": "g",
+               "y": "r", "r": "y", "s": "s", "w": "w", "k": "m", "m": "k", "b": "v", "v": "b", "d": "h", "h": "d"}
+
+
 ################################################################################
 
 
@@ -96,6 +103,16 @@ def configure_logging(args):
 
 
 ################################################################################
+
+
+def reverse_complement(base_string):
+    """
+    Reverse complements the given base_string.
+    :param base_string: String of bases to be reverse-complemented.
+    :return: The reverse complement of the given base string.
+    """
+
+    return ''.join(map(lambda b: RC_BASE_MAP[b], base_string[::-1]))
 
 
 def cigar_tuple_to_string(cigar_tuples):
@@ -540,6 +557,11 @@ def get_array_element_alignments(args):
 
     # read in our sequence delimiters:
     mas_seq_delimiters = ingest_fastx_file(args.delimiters)
+
+    # Filter out any delimiters that are the reverse complement of others:
+    # (this will take care of the case where we have a poly-A and poly-T defined in our delimiters)
+    rc_mas_seq_delimiters = [reverse_complement(d) for d in mas_seq_delimiters]
+    mas_seq_delimiters = list(filter(lambda d: d not in rc_mas_seq_delimiters, mas_seq_delimiters))
 
     stat_names = ['num_array_elements']
 
