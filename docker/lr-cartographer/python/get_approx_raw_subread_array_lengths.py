@@ -392,8 +392,8 @@ def get_array_element_alignments(args):
                     LOGGER.info(f"ZMW {zmw} \"Best\" subread: {subread_names[index_min]} -> {subread_seqs[index_min]}")
 
                     processed_results = create_alignment_with_bwa_aln(
-                        r.query_name,
-                        r.query_sequence,
+                        subread_names[index_min],
+                        subread_seqs[index_min],
                         mas_seq_delimiters,
                         minqual=args.minqual
                     )
@@ -434,8 +434,49 @@ def get_array_element_alignments(args):
                 if num_reads % 5000 == 0:
                     LOGGER.info(f"Processed {num_reads} reads.")
 
+            ###########################################
             # Now we have to handle the last ZMW:
-            # TODO: DO THIS
+            # TODO: Remove duplicated code:
+            if len(zmw_read_lengths) > 0:
+                stats = dict()
+                stats["mean"] = statistics.mean(zmw_read_lengths)
+                stats["median"] = statistics.median(zmw_read_lengths)
+
+                read_length_diffs = list(
+                    map(
+                        lambda x: (abs(x - stats["mean"]) + abs(x - stats["median"])) / 2,
+                        zmw_read_lengths
+                    )
+                )
+                index_min = min(range(len(read_length_diffs)), key=read_length_diffs.__getitem__)
+
+                LOGGER.info(f"ZMW {zmw} \"Best\" subread: {subread_names[index_min]} -> {subread_seqs[index_min]}")
+
+                processed_results = create_alignment_with_bwa_aln(
+                    subread_names[index_min],
+                    subread_seqs[index_min],
+                    mas_seq_delimiters,
+                    minqual=args.minqual
+                )
+
+                concise_alignments = ",".join([
+                    f"{p.seq_name}"
+                    f"[@{p.read_start_pos}"
+                    f"q{p.overall_quality}"
+                    f"b({(p.target_end_index - p.target_start_index)}/{len(mas_seq_delimiters[p.seq_name])})"
+                    f"c{100.0*(p.target_end_index - p.target_start_index)/p.template_length:2.0f}]"
+                    for p in processed_results
+                ])
+
+                # Write our output to the file:
+                out_line = f"{zmw}\t" + \
+                           f"{subread_names[index_min]}\t" + \
+                           f"{len(processed_results)}\t" + \
+                           f"{','.join([p.seq_name for p in processed_results])}\t" + \
+                           f"{concise_alignments}\n"
+
+                LOGGER.debug(f"Results: {out_line}")
+                out_file.write(out_line)
 
         LOGGER.info(f"Total reads processed: {num_reads}")
 
