@@ -632,14 +632,21 @@ def characterize_representative_subread(zmw, args, mas_seq_delimiters, out_file,
         )
 
     # Format our output all pretty:
-    concise_alignments = ",".join([
-        f"{p.seq_name}"
-        f"[@{p.read_start_pos}"
-        f"q{p.overall_quality}"
-        f"b({(p.target_end_index - p.target_start_index)}/{len(mas_seq_delimiters[p.seq_name])})"
-        f"c{100.0*(p.target_end_index - p.target_start_index)/p.template_length:2.0f}]"
-        for p in processed_results
-    ])
+    concise_alignments = []
+    for p in processed_results:
+
+        # Because we're adding the RC name to the alignments we need to remove it
+        # prior to pulling out the delmiter sequence itself:
+        delim_name = p.seq_name
+        if delim_name.endswith(RC_READ_NAME_IDENTIFIER):
+            delim_name = delim_name[:-len(RC_READ_NAME_IDENTIFIER)]
+
+        concise_alignments.append(
+            f"{p.seq_name}[@{p.read_start_pos}q{p.overall_quality}"
+            f"b({(p.target_end_index - p.target_start_index)}/{len(mas_seq_delimiters[delim_name])})"
+            f"c{100.0*(p.target_end_index - p.target_start_index)/p.template_length:2.0f}]"
+        )
+    concise_alignment_string = ",".join(concise_alignments)
 
     # Write our output to the file:
     out_line = f"{zmw}\t" + \
@@ -647,7 +654,7 @@ def characterize_representative_subread(zmw, args, mas_seq_delimiters, out_file,
                f"{subread_names[index_min]}\t" + \
                f"{len(processed_results)}\t" + \
                f"{','.join([p.seq_name for p in processed_results])}\t" + \
-               f"{concise_alignments}\n"
+               f"{concise_alignment_string}\n"
 
     # Write our output:
     LOGGER.debug(f"Results: {out_line}")
