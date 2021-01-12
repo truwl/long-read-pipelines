@@ -957,13 +957,16 @@ task MergeTsvFiles {
 
     input {
         Array[File] tsv_files
+
+        String prefix = "combined"
     }
 
     parameter_meta {
         tsv_files : "Array of TSV files to be combined.  Files will be combined in the order they are given."
+        prefix : "[Optional] Prefix string to name the output file (Default: combined)."
     }
 
-    String out_file = "combined.tsv"
+    String out_file = prefix + ".tsv"
 
     # We're simply merging files, so we shouldn't need much space
     # 1x for the files themselves

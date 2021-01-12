@@ -225,13 +225,15 @@ workflow PB10xMasSeqSingleFlowcellv2 {
         # Merge the sharded zmw subread stats:
         call Utils.MergeTsvFiles as MergeShardedZmwSubreadStats {
             input:
-                tsv_files = MergeMicroShardedZmwSubreadStats.merged_tsv
+                tsv_files = MergeMicroShardedZmwSubreadStats.merged_tsv,
+                prefix = SM + "_zmw_subread_stats"
         }
 
         # Merge the sharded raw subread array element counts:
         call Utils.MergeTsvFiles as MergeShardedRawSubreadArrayElementCounts {
             input:
-                tsv_files = MergeMicroShardedRawSubreadArrayElementCounts.merged_tsv
+                tsv_files = MergeMicroShardedRawSubreadArrayElementCounts.merged_tsv,
+                prefix = SM + "_approx_subread_array_lengths"
         }
 
         # Merge the 10x stats:
