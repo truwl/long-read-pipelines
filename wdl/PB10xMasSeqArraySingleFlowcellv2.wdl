@@ -112,18 +112,22 @@ workflow PB10xMasSeqSingleFlowcellv2 {
             call Utils.ShardLongReadsWithCopy as SubshardRawSubreads {
                 input:
                     unmapped_files = [ subreads ],
-                    num_reads_per_split = 10000,
+                    num_reads_per_split = 50000,
                     runtime_attr_override = subshard_raw_subreads_runtime_attrs
             }
-            scatter (corrected_shard in SubshardRawSubreads.unmapped_shards) {
+            scatter (subsharded_subreads in SubshardRawSubreads.unmapped_shards) {
 
                 # Get ZMW Subread stats here to shard them out wider and make it faster:
-                call PB.CollectZmwSubreadStats as CollectZmwSubreadStats_subsharded{ input: subreads = subreads, prefix = SM + "_zmw_subread_stats"}
+                call PB.CollectZmwSubreadStats as CollectZmwSubreadStats_subsharded{
+                    input:
+                        subreads = subsharded_subreads,
+                        prefix = SM + "_zmw_subread_stats"
+                }
 
                 # Get approximate subread array lengths here:
                 call CART.GetApproxRawSubreadArrayLengths as GetApproxRawSubreadArrayLengths_subsharded {
                     input:
-                        reads_file = subreads,
+                        reads_file = subsharded_subreads,
                         delimiters_fasta = segments_fasta,
                         min_qual = 7.0,
                         ignore_seqs = ["Poly_A", "Poly_T", "3_prime_TSO", "5_prime_TSO"],

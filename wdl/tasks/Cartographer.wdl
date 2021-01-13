@@ -337,6 +337,8 @@ task SplitSequenceOnDelimiters {
 
         String prefix = "approx_raw_subread_array_lengths"
 
+        String alignment_algorithm = "BWA_ALN"
+
         Int? max_read_length
         Int? min_bases
 
@@ -356,6 +358,8 @@ task SplitSequenceOnDelimiters {
         ignore_seqs : "[optional] Sequences to ignore and not use as delimiters."
 
         prefix : "[optional] Base name for the output data file.  (Default: approx_raw_subread_array_lengths)"
+
+        alignment_algorithm : "[optional] Alignment to use to discover delimiters.  (Default: BWA_ALN)"
 
         max_read_length : "[optional] The read length beyond which a read will not be processed."
         min_bases : "[optional] Minimum number of bases for an alignment to be retained."
@@ -422,6 +426,7 @@ task SplitSequenceOnDelimiters {
             -d ~{delimiters_fasta} \
             ~{ignore_seqs_arg}~{default="" sep=" --ignore " ignore_seqs} \
             -o ~{prefix}.tsv \
+            --aligner ~{alignment_algorithm} \
             --minqual ~{min_qual} \
             2>&1 | tee ~{log_file_name}
 
