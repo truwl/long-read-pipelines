@@ -91,7 +91,7 @@ def get_polymerase_read_lengths(args):
                                                                                          polymerase_read_length_map)
                     num_scraps += 1
 
-                if (num_subreads + num_scraps) % 5000 == 0:
+                if (num_subreads + num_scraps) % 10000 == 0:
                     LOGGER.info(f"Processed {num_subreads} subreads\t{num_scraps} scraps")
 
         LOGGER.info(f"Subreads processed: {num_subreads}")

@@ -74,7 +74,12 @@ workflow PB10xMasSeqSingleFlowcellv2 {
 
     call PB.FindBams { input: gcs_input_dir = gcs_input_dir }
 
-    scatter (subread_bam in FindBams.subread_bams) {
+    # Get polymerase read length information:
+
+#    scatter (subread_bam in FindBams.subread_bams) {
+    scatter (subread_indx in range(length(FindBams.subread_bams))) {
+
+        String subread_bam = FindBams.subread_bams[subread_indx]
         call PB.GetRunInfo { input: subread_bam = subread_bam }
 
         String SM  = select_first([sample_name, GetRunInfo.run_info["SM"]])
@@ -88,6 +93,14 @@ workflow PB10xMasSeqSingleFlowcellv2 {
         String RG_subreads  = "@RG\\tID:~{ID}.subreads\\tSM:~{SM}\\tPL:~{PL}\\tPU:~{PU}\\tDT:~{DT}"
         String RG_consensus = "@RG\\tID:~{ID}.consensus\\tSM:~{SM}\\tPL:~{PL}\\tPU:~{PU}\\tDT:~{DT}"
         String RG_array_elements = "@RG\\tID:~{ID}.array_elements\\tSM:~{SM}\\tPL:~{PL}\\tPU:~{PU}\\tDT:~{DT}"
+
+        # Get statistics on polymerase reads:
+        call PB.CollectPolymeraseReadLengths {
+            input:
+                subreads = FindBams.subread_bams[subread_indx],
+                scraps = FindBams.scraps_bams[subread_indx],
+                prefix = SM + "_polymerase_read_lengths"
+        }
 
         call Utils.ShardLongReadsWithCopy { input: unmapped_files = [ subread_bam ], num_reads_per_split = 2000000 }
 
@@ -499,6 +512,13 @@ workflow PB10xMasSeqSingleFlowcellv2 {
     call FF.FinalizeToDir as FinalizeRawSubreadArrayElementCounts {
         input:
             files = MergeShardedRawSubreadArrayElementCounts.merged_tsv,
+            outdir = metrics_out_dir + "/array_stats",
+            keyfile = GenerateStaticReport.html_report
+    }
+
+    call FF.FinalizeToDir as FinalizePolymeraseReadLengths {
+        input:
+            files = CollectPolymeraseReadLengths.polymerase_read_lengths_tsv,
             outdir = metrics_out_dir + "/array_stats",
             keyfile = GenerateStaticReport.html_report
     }
