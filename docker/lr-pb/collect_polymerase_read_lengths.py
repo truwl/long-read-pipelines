@@ -42,6 +42,8 @@ def update_polymerase_read_count_with_next_read(read_gen, polymerase_read_length
     try:
         cur_read = next(read_gen)
         zmw = int(READ_NAME_RE.match(cur_read.query_name).group(1))
+        # NOTE: While positions start at 0, the end positions of the itervals are non-inclusive and indicate
+        #       the length of the read, rather than the positions.
         max_pos = [int(b) for b in READ_NAME_RE.match(cur_read.query_name).group(2).split("_")][-1]
         try:
             if polymerase_read_length_map[zmw] < max_pos:
@@ -90,8 +92,7 @@ def get_polymerase_read_lengths(args):
                     num_scraps += 1
 
                 if (num_subreads + num_scraps) % 5000 == 0:
-                    LOGGER.info(f"Processed {num_subreads} subreads.")
-                    LOGGER.info(f"Processed {num_scraps} scraps.")
+                    LOGGER.info(f"Processed {num_subreads} subreads\t{num_scraps} scraps")
 
         LOGGER.info(f"Subreads processed: {num_subreads}")
         LOGGER.info(f"Scraps processed: {num_scraps}")
