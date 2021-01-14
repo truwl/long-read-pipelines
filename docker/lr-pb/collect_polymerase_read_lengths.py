@@ -5,7 +5,6 @@ import sys
 import time
 import logging
 import re
-import statistics
 
 ################################################################################
 
@@ -66,7 +65,6 @@ def get_polymerase_read_lengths(args):
         with pysam.AlignmentFile(args.subreads, 'rb', check_sq=False) as bam_file, \
                 pysam.AlignmentFile(args.scraps, 'rb', check_sq=False) as scraps_file:
 
-            read_name_re = re.compile(r'.*?/(.*?)/(.*)')
             num_subreads = 0
             num_scraps = 0
 
@@ -83,10 +81,14 @@ def get_polymerase_read_lengths(args):
                 if not all_subreads_processed:
                     all_subreads_processed = update_polymerase_read_count_with_next_read(subreads_generator,
                                                                                          polymerase_read_length_map)
+                    num_subreads += 1
+
                 # Get info for scraps:
                 if not all_scraps_processed:
                     all_subreads_processed = update_polymerase_read_count_with_next_read(scraps_generator,
                                                                                          polymerase_read_length_map)
+                    num_scraps += 1
+
                 if (num_subreads + num_scraps) % 5000 == 0:
                     LOGGER.info(f"Processed {num_subreads} subreads.")
                     LOGGER.info(f"Processed {num_scraps} scraps.")
@@ -106,7 +108,6 @@ def get_polymerase_read_lengths(args):
 
 
 def main(raw_args):
-
     base_outfile_name = "polymerase_read_lengths"
 
     # Get our start time:
