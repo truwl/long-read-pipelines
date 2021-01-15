@@ -106,6 +106,11 @@ workflow PB10xMasSeqSingleFlowcellv2 {
 
         scatter (subreads in ShardLongReadsWithCopy.unmapped_shards) {
 
+            ## No more preemption on this sharding - takes too long otherwise.
+            RuntimeAttr disable_preemption_runtime_attrs = object {
+                preemptible_tries: 0
+            }
+
             # Call CCS on the subreads from the sequencer:
             # No preepting because these take long enough that it doesn't seem to save $
             # 16 gigs of memory because I had a crash at 8
@@ -118,15 +123,20 @@ workflow PB10xMasSeqSingleFlowcellv2 {
                     mem_gb = 16
             }
 
-            ## No more preemption on this sharding - takes too long otherwise.
-            RuntimeAttr subshard_raw_subreads_runtime_attrs = object {
-                preemptible_tries: 0
+            # Get our uncorrected / CCS Rejected reads:
+            call PB.ExtractUncorrectedReads {
+                input:
+                    subreads = subreads,
+                    consensus = CCS.consensus,
+                    prefix = SM + "_ccs_rejected",
+                    runtime_attr_override = disable_preemption_runtime_attrs
             }
+
             call Utils.ShardLongReadsWithCopy as SubshardRawSubreads {
                 input:
                     unmapped_files = [ subreads ],
                     num_reads_per_split = 50000,
-                    runtime_attr_override = subshard_raw_subreads_runtime_attrs
+                    runtime_attr_override = disable_preemption_runtime_attrs
             }
             scatter (subsharded_subreads in SubshardRawSubreads.unmapped_shards) {
 
@@ -265,6 +275,9 @@ workflow PB10xMasSeqSingleFlowcellv2 {
         # Merge all CCS bams together for this Subread BAM:
         call Utils.MergeBams as MergeChunks { input: bams = CCS.consensus }
 
+        # Merge all CCS Rejected bams together:
+        call Utils.MergeBams as MergeCCSRejectedChunks { input: bams = ExtractUncorrectedReads.uncorrected }
+
         # Merge all CCS bams together for this Subread BAM:
         call Utils.MergeBams as MergeAlignedChunks { input: bams = AlignCCSReads.aligned_bam }
 
@@ -324,6 +337,9 @@ workflow PB10xMasSeqSingleFlowcellv2 {
 
     # Merge all array element bams together for this flowcell:
     call Utils.MergeBams as MergeAlignedArrayElements { input: bams = MergeAlignedArrayElementChunk.merged_bam, prefix = "~{SM[0]}.~{ID[0]}" }
+
+    # Merge all CCS Rejected chunks:
+    call Utils.MergeBams as MergeAllCCSRejectedBams { input: bams = MergeCCSRejectedChunks.merged_bam, prefix = "~{SM[0]}.~{ID[0]}.ccs_rejected" }
 
     # Merge all aligned CCS bams together for this flowcell:
     call Utils.MergeBams as MergeAllAlignedCCSBams { input: bams = MergeAlignedChunks.merged_bam, prefix = "~{SM[0]}.~{ID[0]}" }
@@ -389,6 +405,7 @@ workflow PB10xMasSeqSingleFlowcellv2 {
 
             ccs_bam_file                     = MergeAllCCSBams.merged_bam,
             array_element_bam_file           = MergeAlignedArrayElements.merged_bam,
+            ccs_rejected_bam_file            = MergeAllCCSRejectedBams.merged_bam,
 
             ebr_element_marker_alignments    = MergeArrayElementMarkerAlignments_3.merged_file,
             ebr_initial_section_alignments   = MergeArrayElementInitialSections_3.merged_file,
@@ -396,6 +413,7 @@ workflow PB10xMasSeqSingleFlowcellv2 {
             ebr_bounds_file                  = boundaries_file,
 
             zmw_subread_stats_file           = MergeShardedZmwSubreadStats.merged_tsv[0],
+            polymerase_read_lengths_file     = CollectPolymeraseReadLengths.polymerase_read_lengths_tsv[0],
             approx_raw_subread_array_lengths = MergeShardedRawSubreadArrayElementCounts.merged_tsv[0],
 
             ten_x_metrics_file               = Merge10XStats_2.merged_tsv,
@@ -485,6 +503,13 @@ workflow PB10xMasSeqSingleFlowcellv2 {
         input:
             files = [ MergeAllAlignedCCSBams.merged_bam, MergeAllAlignedCCSBams.merged_bai ],
             outdir = base_out_dir + "/merged_bams/aligned",
+            keyfile = GenerateStaticReport.html_report
+    }
+
+    call FF.FinalizeToDir as FinalizeAlignedCCSBams {
+        input:
+            files = [ MergeAllCCSRejectedBams.merged_bam, MergeAllCCSRejectedBams.merged_bai ],
+            outdir = base_out_dir + "/merged_bams/ccs_rejected",
             keyfile = GenerateStaticReport.html_report
     }
 
