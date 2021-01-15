@@ -506,7 +506,7 @@ workflow PB10xMasSeqSingleFlowcellv2 {
             keyfile = GenerateStaticReport.html_report
     }
 
-    call FF.FinalizeToDir as FinalizeAlignedCCSBams {
+    call FF.FinalizeToDir as FinalizeAlignedCCSRejectedBams {
         input:
             files = [ MergeAllCCSRejectedBams.merged_bam, MergeAllCCSRejectedBams.merged_bai ],
             outdir = base_out_dir + "/merged_bams/ccs_rejected",
