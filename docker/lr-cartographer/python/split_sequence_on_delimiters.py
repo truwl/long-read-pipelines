@@ -508,7 +508,7 @@ def filter_alignment_results(segment_alignment_results):
     """Filter the given alignment results to contain only one delimiter at each read start position."""
     filtered_results = []
 
-    LOGGER.info(f"Filtering {len(segment_alignment_results)} results...")
+    LOGGER.info(f"Applying filtering {len(segment_alignment_results)} results...")
 
     # This isn't the best way to do this - really it should happen down in the alignment stage
     # so we don't have to iterate so many times.
@@ -532,7 +532,9 @@ def filter_alignment_results(segment_alignment_results):
             v.sort(key=lambda x: x.overall_quality)
             filtered_results.append(v[0])
 
-            LOGGER.debug(f"Filtering {len(v) - 1} results for position: {k}")
+            if LOGGER.isEnabledFor(logging.DEBUG):
+                LOGGER.debug(f"Filtering {len(v) - 1} results for position: {k}: %s",
+                             ",".join([f"{s.seq_name}" for s in v[1:]]))
 
             num_filtered += len(v) - 1
 
