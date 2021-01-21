@@ -604,6 +604,8 @@ def write_sub_sequences(read_data, aligned_delimiters, out_fasta_file, out_bam_f
         a.query_sequence = f"{read_data.seq[start_coord:end_coord]}"
         a.query_qualities = read_data.raw_obj.query_alignment_qualities[start_coord:end_coord]
         a.tags = read_data.raw_obj.get_tags()
+        a.flag = 4  # unmapped flag
+        a.mapping_quality = 255
         out_bam_file.write(a)
         # a.flag = 99
         # a.reference_id = 0
