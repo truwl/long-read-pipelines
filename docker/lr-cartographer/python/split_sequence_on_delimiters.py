@@ -602,18 +602,6 @@ def write_sub_sequences(read_data, aligned_delimiters, out_bam_file):
         a.flag = 4  # unmapped flag
         a.mapping_quality = 255
         out_bam_file.write(a)
-        # a.flag = 99
-        # a.reference_id = 0
-        # a.reference_start = 32
-        # a.mapping_quality = 20
-        # a.cigar = ((0, 10), (2, 1), (0, 25))
-        # a.next_reference_id = 0
-        # a.next_reference_start = 199
-        # a.template_length = 167
-
-        # a.tags = (("NM", 1),
-        #           ("RG", "L1"))
-        # out_bam_file.write(a)
 
         cur_read_base_index = end_coord
         prev_delim_name = delim_name
@@ -622,8 +610,16 @@ def write_sub_sequences(read_data, aligned_delimiters, out_bam_file):
     start_coord = cur_read_base_index
     end_coord = len(read_data.seq)
     delim_name = "END" 
-    out_fasta_file.write(f">{read_data.name}_{start_coord+1}-{end_coord}_{prev_delim_name}-{delim_name}\n")
-    out_fasta_file.write(f"{read_data.seq[start_coord:end_coord]}\n")
+    
+    a = pysam.AlignedSegment()
+    a.query_name = f"{read_data.name}_{start_coord+1}-{end_coord}_{prev_delim_name}-{delim_name}"
+    a.query_sequence = f"{read_data.seq[start_coord:end_coord]}"
+    a.query_qualities = read_data.raw_obj.query_alignment_qualities[start_coord:end_coord]
+    a.tags = read_data.raw_obj.get_tags()
+    a.flag = 4  # unmapped flag
+    a.mapping_quality = 255
+    out_bam_file.write(a)
+
 
 
 def write_section_alignments_to_output_file(out_file, read_name, section_tuples, align_pos_read_pos_map):
