@@ -741,12 +741,12 @@ def split_sequences(args):
 
                     # Track subsequence statistics:
                     num_forward_subsequences_extracted += sum(
-                        not b.seq_name.endswith(RC_READ_NAME_IDENTIFIER) for b in segment_alignment_results
+                        not b.seq_name.endswith(RC_READ_NAME_IDENTIFIER) for b in filtered_alignment_results
                     )
                     num_rc_subsequences_extracted += sum(
-                        b.seq_name.endswith(RC_READ_NAME_IDENTIFIER) for b in segment_alignment_results
+                        b.seq_name.endswith(RC_READ_NAME_IDENTIFIER) for b in filtered_alignment_results
                     )
-                    num_delimiters_detected_this_read = len(segment_alignment_results) + 1
+                    num_delimiters_detected_this_read = len(filtered_alignment_results) + 1
                     num_delimiters_detected += num_delimiters_detected_this_read
                     num_reads_with_delimiters += 1
 
@@ -758,6 +758,7 @@ def split_sequences(args):
             LOGGER.info("# reverse-complemented direction delimiters detected: %d",
                         num_rc_subsequences_extracted)
             LOGGER.info("Total # sub-sequences extracted: %d", num_delimiters_detected)
+            LOGGER.info("Overall data multiplication rate: %2.2f", num_delimiters_detected / num_reads)
 
 
 ################################################################################
