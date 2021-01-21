@@ -173,6 +173,10 @@ class ReadFile:
         """
         return self._is_alignment_file
 
+    def get_header(self):
+        """:return: The header of the underlying alignment file or None."""
+        return self._file_object.header if self._is_alignment_file else None
+
     def get_reads(self):
         """
         Generator function to yield a Sequence object for every read in the
@@ -230,6 +234,7 @@ def cigar_tuple_to_string(cigar_tuples):
         cigar_string_elements.append(f"{count}{CIGAR_ELEMENT_STRING_MAP[element]}")
 
     return "".join(cigar_string_elements)
+
 
 def _log_var(var):
     """
@@ -504,7 +509,7 @@ def get_processed_results_from_bwa_mem_file(file_path, minqual, minbases):
     return processed_results
 
 
-def filter_alignment_results(segment_alignment_results):
+def filter_alignment_results_by_position(segment_alignment_results):
     """Filter the given alignment results to contain only one delimiter at each read start position."""
     filtered_results = []
 
@@ -567,13 +572,14 @@ def align_delimiters(read_data, delimiter_names_to_seq_dict, minqual, minbases, 
     return processed_results
 
 
-def write_sub_sequences(read_data, aligned_delimiters, out_fasta_file):
+def write_sub_sequences(read_data, aligned_delimiters, out_fasta_file, out_bam_file):
     """
     Write out the sections of the given read_data as bounded by aligned_delimiters to the given out_file in
     FASTA format.
     :param read_data: A ReadNameAndSeq object representing the parent read to the given aligned_delimiters.
     :param aligned_delimiters: A list of ProcessedAlignmentResult objects.
     :param out_fasta_file: An open file object to which to write results.
+    :param out_bam_file: An open pysam.AlignmentFile object to which to write results.
     :return: None
     """
 
@@ -588,8 +594,29 @@ def write_sub_sequences(read_data, aligned_delimiters, out_fasta_file):
         end_coord = delimiter_alignment.read_start_pos
         delim_name = delimiter_alignment.seq_name
 
+        # Write out fasta:
         out_fasta_file.write(f">{read_data.name}_{start_coord+1}-{end_coord}_{prev_delim_name}-{delim_name}\n")
         out_fasta_file.write(f"{read_data.seq[start_coord:end_coord]}\n")
+
+        # Write out bam:
+        a = pysam.AlignedSegment()
+        a.query_name = f"{read_data.name}_{start_coord+1}-{end_coord}_{prev_delim_name}-{delim_name}"
+        a.query_sequence = f"{read_data.seq[start_coord:end_coord]}"
+        a.query_qualities = pysam.qualitystring_to_array(read_data.query_alignment_qualities[start_coord:end_coord])
+        a.tags = read_data.get_tags()
+        out_bam_file.write(a)
+        # a.flag = 99
+        # a.reference_id = 0
+        # a.reference_start = 32
+        # a.mapping_quality = 20
+        # a.cigar = ((0, 10), (2, 1), (0, 25))
+        # a.next_reference_id = 0
+        # a.next_reference_start = 199
+        # a.template_length = 167
+
+        # a.tags = (("NM", 1),
+        #           ("RG", "L1"))
+        # out_bam_file.write(a)
 
         cur_read_base_index = end_coord
         prev_delim_name = delim_name
@@ -667,16 +694,30 @@ def split_sequences(args):
     # A spacing variable for nice looking logs:
     spacing_one = " " * 4
 
-    # Open all our files here so they'll be automatically closed:
-    with open(args.outfile, 'w') as out_file, open(args.rejected_outfile, 'w') as rejected_out_file:
-        num_delimiters_detected = 0
-        num_reads_with_delimiters = 0
-        num_forward_subsequences_extracted = 0
-        num_rc_subsequences_extracted = 0
-        num_rejected = 0
-        LOGGER.info("Processing reads...")
+    # Create a bam file out:
+    dot_index = args.outfile.rfind(".")
+    if dot_index == -1:
+        bam_name = args.outfile + ".bam"
+    else:
+        bam_name = args.outfile[:dot_index] + ".bam"
 
-        with ReadFile(args.reads) as reads_file:
+    # Open all our files here so they'll be automatically closed:
+    with ReadFile(args.reads) as reads_file:
+
+        out_bam_header = reads_file.get_header()
+        if out_bam_header is None:
+            out_bam_header = {'HD': {'VN': '1.0', 'SO': "unknown", 'pb': '>=3.01'}}
+
+        with open(args.outfile, 'w') as out_file, \
+                open(args.rejected_outfile, 'w') as rejected_out_file, \
+                pysam.AlignmentFile(bam_name, 'wb', header=out_bam_header) as out_bam:
+            num_delimiters_detected = 0
+            num_reads_with_delimiters = 0
+            num_forward_subsequences_extracted = 0
+            num_rc_subsequences_extracted = 0
+            num_rejected = 0
+            LOGGER.info("Processing reads...")
+
             num_reads = 0
             for read_num, read_data in enumerate(reads_file.get_reads()):
                 num_reads += 1
@@ -708,10 +749,10 @@ def split_sequences(args):
                     LOGGER.info("%sDelimiters occur %d time(s).", spacing_one, len(segment_alignment_results))
 
                     # Filter the delimiters down to those we'll keep:
-                    filtered_alignment_results = filter_alignment_results(segment_alignment_results)
+                    filtered_alignment_results = filter_alignment_results_by_position(segment_alignment_results)
 
                     # Write out our new subsequences to the output fasta file:
-                    write_sub_sequences(read_data, filtered_alignment_results, out_file)
+                    write_sub_sequences(read_data, filtered_alignment_results, out_file, out_bam)
 
                     # Track subsequence statistics:
                     num_forward_subsequences_extracted += sum(
