@@ -494,6 +494,33 @@ def get_processed_results_from_bwa_mem_file(file_path, minqual, minbases):
     return processed_results
 
 
+def filter_alignment_results(segment_alignment_results):
+    """Filter the given alignment results to contain only one instance of each delimiter."""
+    filtered_results = []
+
+    # This isn't the best way to do this - really it should happen down in the alignment stage
+    # so we don't have to iterate so many times.
+    segment_dict = dict()
+    for s in segment_alignment_results:
+        if s.seq_name in segment_dict:
+            segment_dict[s.seq_name].append(s)
+        else:
+            segment_dict[s.seq_name] = [s]
+
+    # Now that we have our map we can perform the filtering:
+    for k,v in segment_dict:
+        # Most of the time we should have only one alignment per segment:
+        if len(v) == 1:
+            filtered_results.append(v[0])
+        else:
+            # Since we have more than one alignment,
+            # we need to get the alignment with the best score:
+            v.sort(key=lambda x: x.overall_quality)
+            filtered_results.append(v[0])
+
+    return filtered_results
+
+
 def align_delimiters(read_data, delimiter_names_to_seq_dict, minqual, minbases, threads=1, log_spacing="    "):
     """
     Align the given delimiters to the given read sequence.
@@ -657,8 +684,11 @@ def split_sequences(args):
                 else:
                     LOGGER.info("%sDelimiters occur %d time(s).", spacing_one, len(segment_alignment_results))
 
+                    # Filter the delimiters down to those we'll keep:
+                    filtered_alignment_results = filter_alignment_results(segment_alignment_results)
+
                     # Write out our new subsequences to the output fasta file:
-                    write_sub_sequences(read_data, segment_alignment_results, out_file)
+                    write_sub_sequences(read_data, filtered_alignment_results, out_file)
 
                     # Track subsequence statistics:
                     num_forward_subsequences_extracted += sum(
