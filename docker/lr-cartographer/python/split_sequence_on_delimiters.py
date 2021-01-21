@@ -204,6 +204,33 @@ def reverse_complement(base_string):
     return ''.join(map(lambda b: RC_BASE_MAP[b], base_string[::-1]))
 
 
+CIGAR_ELEMENT_STRING_MAP = {
+    pysam.CDEL: "D",
+    pysam.CMATCH: "M",
+    pysam.CBACK: "B",
+    pysam.CINS: "I",
+    pysam.CPAD: "P",
+    pysam.CEQUAL: "=",
+    pysam.CSOFT_CLIP: "S",
+    pysam.CHARD_CLIP: "H",
+    pysam.CREF_SKIP: "N",
+    pysam.CDIFF: "X"
+}
+
+
+def cigar_tuple_to_string(cigar_tuples):
+    """
+    Converts a given list of cigar tuples to a string.
+    :param cigar_tuples: list of tuples, each containing a cigar element and count.
+    :return: A string representing the given cigar tuple list.
+    """
+
+    cigar_string_elements = []
+    for element, count in cigar_tuples:
+        cigar_string_elements.append(f"{count}{CIGAR_ELEMENT_STRING_MAP[element]}")
+
+    return "".join(cigar_string_elements)
+
 def _log_var(var):
     """
     Logs the given variable's name and contents at the DEBUG log level.
