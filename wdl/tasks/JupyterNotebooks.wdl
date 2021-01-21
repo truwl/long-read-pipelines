@@ -110,7 +110,7 @@ task PB10xMasSeqSingleFlowcellReport {
         echo "{% endblock input_group %}" >> hidecode.tpl
 
         # Set some environment variables for the notebook to read in:
-        export DATE_RUN=$()
+        export DATE_RUN="$(date)"
         export WDL_NAME="PB10xMasSeqArraySingleFlowcell.wdl"
         export REPO_INFO="git@github.com:broadinstitute/long-read-pipelines.git"
 

@@ -420,7 +420,7 @@ workflow PB10xMasSeqSingleFlowcellv2 {
             rna_seq_metrics_file             = ArrayElementRnaSeqMetrics.rna_metrics,
 
             workflow_dot_file                = workflow_dot_file,
-            prefix                           = "static",
+            prefix                           = SM + "_",
 
             runtime_attr_override            = create_report_runtime_attrs,
     }
