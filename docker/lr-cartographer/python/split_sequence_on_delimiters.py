@@ -505,7 +505,7 @@ def get_processed_results_from_bwa_mem_file(file_path, minqual, minbases):
 
 
 def filter_alignment_results(segment_alignment_results):
-    """Filter the given alignment results to contain only one instance of each delimiter."""
+    """Filter the given alignment results to contain only one delimiter at each read start position."""
     filtered_results = []
 
     LOGGER.info(f"Filtering {len(segment_alignment_results)} results...")
@@ -514,17 +514,17 @@ def filter_alignment_results(segment_alignment_results):
     # so we don't have to iterate so many times.
     segment_dict = dict()
     for s in segment_alignment_results:
-        if s.seq_name in segment_dict:
-            segment_dict[s.seq_name].append(s)
+        if s.read_start_pos in segment_dict:
+            segment_dict[s.read_start_pos].append(s)
         else:
-            segment_dict[s.seq_name] = [s]
+            segment_dict[s.read_start_pos] = [s]
 
     # Now that we have our map we can perform the filtering:
     num_filtered = 0
     for k,v in segment_dict.items():
         # Most of the time we should have only one alignment per segment:
         if len(v) == 1:
-            LOGGER.debug(f"Single sequence detected for delimiter: {k}")
+            LOGGER.debug(f"Single sequence detected for position: {k}")
             filtered_results.append(v[0])
         else:
             # Since we have more than one alignment,
@@ -532,7 +532,7 @@ def filter_alignment_results(segment_alignment_results):
             v.sort(key=lambda x: x.overall_quality)
             filtered_results.append(v[0])
 
-            LOGGER.debug(f"Filtering {len(v) - 1} results for delimiter: {k}")
+            LOGGER.debug(f"Filtering {len(v) - 1} results for position: {k}")
 
             num_filtered += len(v) - 1
 
