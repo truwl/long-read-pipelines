@@ -498,6 +498,8 @@ def filter_alignment_results(segment_alignment_results):
     """Filter the given alignment results to contain only one instance of each delimiter."""
     filtered_results = []
 
+    LOGGER.info(f"Filtering {len(segment_alignment_results)} results...")
+
     # This isn't the best way to do this - really it should happen down in the alignment stage
     # so we don't have to iterate so many times.
     segment_dict = dict()
@@ -508,15 +510,24 @@ def filter_alignment_results(segment_alignment_results):
             segment_dict[s.seq_name] = [s]
 
     # Now that we have our map we can perform the filtering:
+    num_filtered = 0
     for k,v in segment_dict.items():
         # Most of the time we should have only one alignment per segment:
         if len(v) == 1:
+            LOGGER.debug(f"Single sequence detected for delimiter: {k}")
             filtered_results.append(v[0])
         else:
             # Since we have more than one alignment,
             # we need to get the alignment with the best score:
             v.sort(key=lambda x: x.overall_quality)
             filtered_results.append(v[0])
+
+            LOGGER.debug(f"Filtering {len(v) - 1} results for delimiter: {k}")
+
+            num_filtered += len(v) - 1
+
+    LOGGER.info(f"Filtered {num_filtered} results.")
+    LOGGER.info(f"Returning {len(filtered_results)} results.")
 
     return filtered_results
 
