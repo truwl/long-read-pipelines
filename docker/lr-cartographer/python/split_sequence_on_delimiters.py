@@ -508,7 +508,7 @@ def filter_alignment_results(segment_alignment_results):
             segment_dict[s.seq_name] = [s]
 
     # Now that we have our map we can perform the filtering:
-    for k,v in segment_dict:
+    for k,v in segment_dict.items():
         # Most of the time we should have only one alignment per segment:
         if len(v) == 1:
             filtered_results.append(v[0])
