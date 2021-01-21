@@ -481,8 +481,18 @@ def get_processed_results_from_bwa_mem_file(file_path, minqual, minbases):
                     reason_string = f"qual too low ({qual_pl} < {minqual})"
 
                 LOGGER.debug("Target does not pass threshold: %s: %s (%s)", seq_name, reason_string, p)
-            else:
-                processed_results.append(p)
+                continue
+
+            # Check for secondary alignment flags:
+            if read.is_secondary:
+                LOGGER.debug("Skipping - Target is a secondary alignment: %s", p)
+                continue
+            elif read.is_supplementary:
+                LOGGER.debug("Skipping - Target is a supplementary alignment: %s", p)
+                continue
+
+            # Read passes all filters.  We can add it to our list:
+            processed_results.append(p)
 
     # Sort by the order in which they appear in the read:
     # NOTE: For this tool, this sort isn't strictly necessary and can be removed to save time
