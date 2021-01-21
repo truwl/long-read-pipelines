@@ -572,13 +572,12 @@ def align_delimiters(read_data, delimiter_names_to_seq_dict, minqual, minbases, 
     return processed_results
 
 
-def write_sub_sequences(read_data, aligned_delimiters, out_fasta_file, out_bam_file):
+def write_sub_sequences(read_data, aligned_delimiters, out_bam_file):
     """
     Write out the sections of the given read_data as bounded by aligned_delimiters to the given out_file in
     FASTA format.
     :param read_data: A ReadNameAndSeq object representing the parent read to the given aligned_delimiters.
     :param aligned_delimiters: A list of ProcessedAlignmentResult objects.
-    :param out_fasta_file: An open file object to which to write results.
     :param out_bam_file: An open pysam.AlignmentFile object to which to write results.
     :return: None
     """
@@ -593,10 +592,6 @@ def write_sub_sequences(read_data, aligned_delimiters, out_fasta_file, out_bam_f
         start_coord = cur_read_base_index
         end_coord = delimiter_alignment.read_start_pos
         delim_name = delimiter_alignment.seq_name
-
-        # Write out fasta:
-        out_fasta_file.write(f">{read_data.name}_{start_coord+1}-{end_coord}_{prev_delim_name}-{delim_name}\n")
-        out_fasta_file.write(f"{read_data.seq[start_coord:end_coord]}\n")
 
         # Write out bam:
         a = pysam.AlignedSegment()
@@ -696,13 +691,6 @@ def split_sequences(args):
     # A spacing variable for nice looking logs:
     spacing_one = " " * 4
 
-    # Create a bam file out:
-    dot_index = args.outfile.rfind(".")
-    if dot_index == -1:
-        bam_name = args.outfile + ".bam"
-    else:
-        bam_name = args.outfile[:dot_index] + ".bam"
-
     # Open all our files here so they'll be automatically closed:
     with ReadFile(args.reads) as reads_file:
 
@@ -710,9 +698,8 @@ def split_sequences(args):
         if out_bam_header is None:
             out_bam_header = {'HD': {'VN': '1.0', 'SO': "unknown", 'pb': '>=3.01'}}
 
-        with open(args.outfile, 'w') as out_file, \
-                open(args.rejected_outfile, 'w') as rejected_out_file, \
-                pysam.AlignmentFile(bam_name, 'wb', header=out_bam_header) as out_bam:
+        with open(args.rejected_outfile, 'w') as rejected_out_file, \
+                pysam.AlignmentFile(args.outfile, 'wb', header=out_bam_header) as out_bam:
             num_delimiters_detected = 0
             num_reads_with_delimiters = 0
             num_forward_subsequences_extracted = 0
@@ -754,7 +741,7 @@ def split_sequences(args):
                     filtered_alignment_results = filter_alignment_results_by_position(segment_alignment_results)
 
                     # Write out our new subsequences to the output fasta file:
-                    write_sub_sequences(read_data, filtered_alignment_results, out_file, out_bam)
+                    write_sub_sequences(read_data, filtered_alignment_results, out_bam)
 
                     # Track subsequence statistics:
                     num_forward_subsequences_extracted += sum(
@@ -805,8 +792,8 @@ def main(raw_args):
     parser.add_argument(
         "-o",
         "--outfile",
-        help="Output file in which to store alignment results.",
-        default=f"{base_outfile_name}.fasta",
+        help="Output bam file in which to store alignment results.",
+        default=f"{base_outfile_name}.bam",
         required=False,
     )
 
