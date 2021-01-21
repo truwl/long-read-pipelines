@@ -20,6 +20,7 @@ COPY merge_ccs_reports.py /usr/local/bin/
 COPY shard_bam.py /usr/local/bin/
 COPY extract_uncorrected_reads.py /usr/local/bin/
 COPY collect_zmw_subread_stats.py /usr/local/bin/
+COPY collect_polymerase_read_lengths.py /usr/local/bin/
 
 # activate conda environment
 RUN echo "source activate lr-pb" > ~/.bashrc
