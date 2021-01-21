@@ -46,7 +46,7 @@ DetailedAlignmentInfo = namedtuple(
 )
 
 ReadNameAndSeq = namedtuple(
-    "ReadNameAndSeq", ["name", "seq"]
+    "ReadNameAndSeq", ["name", "seq", "raw_obj"]
 )
 
 
@@ -185,10 +185,10 @@ class ReadFile:
 
         if self._is_alignment_file:
             for read in self._file_object.fetch(until_eof=True):
-                yield ReadNameAndSeq(read.query_name, read.query_sequence)
+                yield ReadNameAndSeq(read.query_name, read.query_sequence, read)
         else:
             for read in self._file_object:
-                yield ReadNameAndSeq(read.name, read.sequence)
+                yield ReadNameAndSeq(read.name, read.sequence, read)
 
 
 # IUPAC RC's from: http://arep.med.harvard.edu/labgc/adnan/projects/Utilities/revcomp.html
@@ -602,8 +602,8 @@ def write_sub_sequences(read_data, aligned_delimiters, out_fasta_file, out_bam_f
         a = pysam.AlignedSegment()
         a.query_name = f"{read_data.name}_{start_coord+1}-{end_coord}_{prev_delim_name}-{delim_name}"
         a.query_sequence = f"{read_data.seq[start_coord:end_coord]}"
-        a.query_qualities = pysam.qualitystring_to_array(read_data.query_alignment_qualities[start_coord:end_coord])
-        a.tags = read_data.get_tags()
+        a.query_qualities = read_data.raw_obj.query_alignment_qualities[start_coord:end_coord]
+        a.tags = read_data.raw_obj.get_tags()
         out_bam_file.write(a)
         # a.flag = 99
         # a.reference_id = 0
