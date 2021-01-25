@@ -239,6 +239,21 @@ def cigar_tuple_to_string(cigar_tuples):
     return "".join(cigar_string_elements)
 
 
+def get_pg_sam_header_entry():
+    """Returns a dictionary containing the PG entry for the invocation of this file.
+    This returned value is suitable to adding directly to an output SAM header dictionary."""
+
+    name = sys.argv[0][sys.argv[0].rfind(os.path.sep):]
+
+    return {"PG": {
+        "ID": name,
+        "PN": name,
+        "VN": "UNKNOWN",
+        "DS": "Splits input reads by given delimiters into smaller read sequences.",
+        "CL": " ".join(sys.argv),
+    }}
+
+
 def _log_var(var):
     """
     Logs the given variable's name and contents at the DEBUG log level.
@@ -695,12 +710,12 @@ def split_sequences(args):
     # Open all our files here so they'll be automatically closed:
     with ReadFile(args.reads) as reads_file:
 
-        out_bam_header = reads_file.get_header()
-        if out_bam_header is None:
-            out_bam_header = {'HD': {'VN': '1.0', 'SO': "unknown", 'pb': '>=3.01'}}
+        out_bam_header_dict = reads_file.get_header().to_dict()
+        if out_bam_header_dict is None:
+            out_bam_header_dict = {'HD': {'VN': '1.0', 'SO': "unknown", 'pb': '>=3.01'}}
 
-        with open(args.rejected_outfile, 'w') as rejected_out_file, \
-                pysam.AlignmentFile(args.outfile, 'wb', header=out_bam_header) as out_bam:
+        with pysam.AlignmentFile(args.rejected_outfile, 'wb', header=out_bam_header_dict) as rejected_out_file, \
+                pysam.AlignmentFile(args.outfile, 'wb', header=out_bam_header_dict) as out_bam:
             num_delimiters_detected = 0
             num_reads_with_delimiters = 0
             num_forward_subsequences_extracted = 0
@@ -723,8 +738,7 @@ def split_sequences(args):
                 if args.max_read_length and len(read_data.seq) > args.max_read_length:
                     LOGGER.warning("Ignoring read %d - %s: Length too long: %d > %d", read_num, read_data.name,
                                    len(read_data.seq), args.max_read_length)
-                    rejected_out_file.write(f">{read_data.name}\n")
-                    rejected_out_file.write(f">{read_data.seq}\n")
+                    rejected_out_file.write(read_data.raw_obj)
                     num_rejected += 1
                     continue
 
@@ -825,8 +839,8 @@ def main(raw_args):
 
     parser.add_argument(
         "--rejected_outfile",
-        help="Output file in which to store rejected reads.",
-        default=f"{base_outfile_name}.rejected.fasta",
+        help="Output bam file in which to store rejected reads.",
+        default=f"{base_outfile_name}.rejected.bam",
         required=False,
     )
 
