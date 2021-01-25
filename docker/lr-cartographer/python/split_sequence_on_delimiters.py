@@ -864,7 +864,7 @@ def main(raw_args):
     parser.add_argument(
         "--annotated_read_sections_file",
         help="Output TSV in which to put read segmentation information.",
-        default=f"{base_outfile_name}.split_segments.tsv",
+        default=f"{base_outfile_name}.annotations.tsv",
         required=False,
     )
 

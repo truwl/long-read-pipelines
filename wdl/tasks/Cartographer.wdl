@@ -307,8 +307,9 @@ task SplitSequenceOnDelimiters {
     # Outputs:
     output {
       # Default output file name:
-      File split_sequences            = "split_sequences.fasta"
-      File rejected_reads             = "split_sequences.rejected.fasta"
+      File split_sequences            = "split_sequences.bam"
+      File rejected_reads             = "split_sequences.rejected.bam"
+      File seq_splits_tsv             = "split_sequences.annotations.tsv"
       File log_file                   = "${log_file_name}"
       File timing_info                = "${timing_output_file}"
       File memory_log                 = "${memory_log_file}"
