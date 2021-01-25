@@ -631,7 +631,7 @@ def write_sub_sequences(read_data, aligned_delimiters, out_bam_file, out_tsv_fil
         out_tsv_file.write(f"{delimiter_alignment.seq_name}"
                            f"[{delimiter_alignment.read_start_pos}-{delimiter_alignment.read_end_pos}]"
                            f"c{cigar_tuple_to_string(delimiter_alignment.cigar)}"
-                           f"q{delimiter_alignment.overall_quality}")
+                           f"@{delimiter_alignment.overall_quality}")
         if i != len(aligned_delimiters) - 1:
             out_tsv_file.write(",")
 
@@ -652,35 +652,7 @@ def write_sub_sequences(read_data, aligned_delimiters, out_bam_file, out_tsv_fil
     a.mapping_quality = 255
     out_bam_file.write(a)
 
-
-def write_section_alignments_to_output_file(out_file, read_name, section_tuples, align_pos_read_pos_map):
-    """
-    Writes the given marker alignments to the given out_file.
-    Writes one line: the read_name, followed by a basic string representation of each alignment separated by tabs.
-
-    If len(section_tuples) == 0, then does not write anything.
-
-    :param out_file: An open File object to which to write the data.
-    :param read_name: The name of the read to which the given alignments belong.
-    :param section_tuples: A list of tuples, with each tuple containing exactly two ProcessedAlignmentResult and
-    representing an alignment to be excised from the parent read.
-    :param align_pos_read_pos_map: Map from alignment string position to read position.
-    """
-    if len(section_tuples) != 0:
-        out_file.write(read_name)
-        for s1, s2 in section_tuples:
-            out_file.write("\t")
-            out_file.write(f"[{s1.seq_name}:"
-                           f"{align_pos_read_pos_map[s1.read_start_pos]}"
-                           f"-{align_pos_read_pos_map[s1.read_end_pos]}"
-                           f"@{s1.overall_quality}")
-            out_file.write("<>")
-            out_file.write(f"{s2.seq_name}:"
-                           f"{align_pos_read_pos_map[s2.read_start_pos]}"
-                           f"-{align_pos_read_pos_map[s2.read_end_pos]}"
-                           f"@{s2.overall_quality}]")
-        out_file.write("\n")
-
+    out_tsv_file.write('\n')
 
 def split_sequences(args):
     """Main CLI call for the Extract Bounded Read Sections tool."""
