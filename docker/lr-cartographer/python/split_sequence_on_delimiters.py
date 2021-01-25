@@ -736,7 +736,7 @@ def split_sequences(args):
             num_rejected = 0
 
             LOGGER.debug("Writing TSV split file header...")
-            read_segments_file.write("\t".join("READ_NAME", "READ_LENGTH", "SEGMENTS"))
+            read_segments_file.write("\t".join(["READ_NAME", "READ_LENGTH", "SEGMENTS"]))
             read_segments_file.write("\n")
 
             LOGGER.info("Processing reads...")
