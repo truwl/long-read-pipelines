@@ -23,6 +23,9 @@ import pysam
 
 ################################################################################
 
+
+USE_BWA_MEM_2 = False
+
 RC_READ_NAME_IDENTIFIER = "_RC"
 VALID_DNA_SEQUENCE_PATTERN = re.compile(r"^[ATGCNatgcn]+$")
 
@@ -333,6 +336,8 @@ def create_alignment_with_bwa_mem(read_data,
     """
     out_file_name = "tmp.sam"
 
+    bwa_exe_path = "/bwa-mem2-2.0pre2_x64-linux/bwa-mem2" if USE_BWA_MEM_2 else "/bwa/bwa"
+
     # Write sequences to tmp fasta file:
     _, ref_file = tempfile.mkstemp()
     _, delim_file = tempfile.mkstemp()
@@ -342,7 +347,7 @@ def create_alignment_with_bwa_mem(read_data,
             tmp.write(f">{read_data.name}\n")
             tmp.write(f"{read_data.seq}\n")
 
-        bwa_index_args = ["/bwa-mem2-2.0pre2_x64-linux/bwa-mem2", "index", ref_file]
+        bwa_index_args = [bwa_exe_path, "index", ref_file]
         LOGGER.debug(
             "%sRunning BWA Index on tmp file (%s): %s", log_spacing, ref_file, " ".join(bwa_index_args)
         )
@@ -363,7 +368,7 @@ def create_alignment_with_bwa_mem(read_data,
             for l in f.readlines():
                 LOGGER.debug(l.rstrip())
 
-        bwa_mem_args = ["/bwa-mem2-2.0pre2_x64-linux/bwa-mem2", "mem",
+        bwa_mem_args = [bwa_exe_path, "mem",
                         "-a",  # Output all found alignments for single-end or unpaired paired-end reads.
                         # These alignments will be flagged as secondary alignments.
                         "-S",  # skip mate rescue
