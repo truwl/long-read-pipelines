@@ -126,7 +126,10 @@ def print_logo():
     LOGGER.info("\\___________________________________________________________________/")
     LOGGER.info("")
     LOGGER.info("")
-    LOGGER.info("      powered by BWA MEM 2")
+    if USE_BWA_MEM_2:
+        LOGGER.info("      powered by BWA MEM 2")
+    else:
+        LOGGER.info("      powered by BWA MEM")
     LOGGER.info("====================================================================")
     LOGGER.info("")
 
@@ -290,9 +293,21 @@ def dump_seq_map(seq_map, name='Reads'):
             LOGGER.debug('    %s -> %s', e[0], e[1])
 
 
-def ingest_fastx_file(file_path):
+def assert_unique_delimiter_seqs(delim_name_map):
+    """Asserts that the sequences of the given delimiters are unique."""
+    seq_set = set()
+    for k,v in delim_name_map.items():
+        if v in seq_set:
+            LOGGER.error(f"ERROR: Delimiter sequence is not unique for seq {k}: {v}")
+            LOGGER.error("ABORTING.")
+            sys.exit(1)
+        else:
+            seq_set.add(v)
+
+
+def ingest_fastx_file(file_path, allow_duplicate_names=False):
     """Ingest the contents of a FASTA/FASTQ file and return two dictionaries
-    onc
+    
         1: Mapping from read name to read sequence
         2: Mapping from template name to read name
 
@@ -304,10 +319,21 @@ def ingest_fastx_file(file_path):
     t_num = 0
     _read_to_sequence_dict = OrderedDict()
     _template_to_read_name_dict = dict()
+
+    _name_set = set()
+
     with pysam.FastxFile(file_path) as file_handle:
         for entry in file_handle:
+
+            if not allow_duplicate_names and entry.name in _name_set:
+                LOGGER.error(f"ERROR: Delimiter name is not unique: {entry.name}")
+                LOGGER.error("ABORTING.")
+                sys.exit(1)
+
             _read_to_sequence_dict[entry.name] = entry.sequence
             _template_to_read_name_dict[f"template{t_num}"] = entry.name
+
+            _name_set.add(entry.name)
 
             t_num += 1
 
@@ -631,7 +657,7 @@ def write_sub_sequences(read_data, aligned_delimiters, out_bam_file, out_tsv_fil
         out_tsv_file.write(f"{delimiter_alignment.seq_name}"
                            f"[{delimiter_alignment.read_start_pos}-{delimiter_alignment.read_end_pos}]"
                            f"c{cigar_tuple_to_string(delimiter_alignment.cigar)}"
-                           f"@{delimiter_alignment.overall_quality}")
+                           f"@{delimiter_alignment.overall_quality:2.3f}")
         if i != len(aligned_delimiters) - 1:
             out_tsv_file.write(",")
 
@@ -684,6 +710,7 @@ def split_sequences(args):
 
     LOGGER.info("Ingesting delimiters from %s ...", args.delimiters)
     delimiter_names_to_seq_dict, _ = ingest_fastx_file(args.delimiters)
+    assert_unique_delimiter_seqs(delimiter_names_to_seq_dict)
     LOGGER.info("Ingested %d delimiters.", len(delimiter_names_to_seq_dict))
     dump_seq_map(delimiter_names_to_seq_dict, "Delimiters")
 
