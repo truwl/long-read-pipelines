@@ -592,20 +592,24 @@ def align_delimiters(read_data, delimiter_names_to_seq_dict, minqual, minbases, 
     return processed_results
 
 
-def write_sub_sequences(read_data, aligned_delimiters, out_bam_file):
+def write_sub_sequences(read_data, aligned_delimiters, out_bam_file, out_tsv_file):
     """
     Write out the sections of the given read_data as bounded by aligned_delimiters to the given out_file in
-    FASTA format.
+    BAM format.
+    Also write out the segment splitting information in TSV format in the given TSV output file.
     :param read_data: A ReadNameAndSeq object representing the parent read to the given aligned_delimiters.
     :param aligned_delimiters: A list of ProcessedAlignmentResult objects.
     :param out_bam_file: An open pysam.AlignmentFile object to which to write results.
+    :param out_tsv_file: An open file object to which to write alignments in TSV format.
     :return: None
     """
 
     cur_read_base_index = 0
     prev_delim_name = "START"
 
-    for delimiter_alignment in aligned_delimiters:
+    out_tsv_file.write(f"{read_data.name}\t{len(read_data.seq)}\t")
+
+    for i, delimiter_alignment in enumerate(aligned_delimiters):
 
         # Do some math here to account for how we create the tuple list:
         # And adjust for reverse complements:
@@ -623,6 +627,14 @@ def write_sub_sequences(read_data, aligned_delimiters, out_bam_file):
         a.mapping_quality = 255
         out_bam_file.write(a)
 
+        # Write the TSV output:
+        out_tsv_file.write(f"{delimiter_alignment.seq_name}"
+                           f"[{delimiter_alignment.read_start_pos}-{delimiter_alignment.read_end_pos}]"
+                           f"c{cigar_tuple_to_string(delimiter_alignment.cigar)}"
+                           f"q{delimiter_alignment.overall_quality}")
+        if i != len(aligned_delimiters) - 1:
+            out_tsv_file.write(",")
+
         cur_read_base_index = end_coord
         prev_delim_name = delim_name
 
@@ -639,7 +651,6 @@ def write_sub_sequences(read_data, aligned_delimiters, out_bam_file):
     a.flag = 4  # unmapped flag
     a.mapping_quality = 255
     out_bam_file.write(a)
-
 
 
 def write_section_alignments_to_output_file(out_file, read_name, section_tuples, align_pos_read_pos_map):
@@ -715,12 +726,19 @@ def split_sequences(args):
             out_bam_header_dict = {'HD': {'VN': '1.0', 'SO': "unknown", 'pb': '>=3.01'}}
 
         with pysam.AlignmentFile(args.rejected_outfile, 'wb', header=out_bam_header_dict) as rejected_out_file, \
-                pysam.AlignmentFile(args.outfile, 'wb', header=out_bam_header_dict) as out_bam:
+                pysam.AlignmentFile(args.outfile, 'wb', header=out_bam_header_dict) as out_bam, \
+                open(args.annotated_read_sections_file, 'w') as read_segments_file:
+
             num_delimiters_detected = 0
             num_reads_with_delimiters = 0
             num_forward_subsequences_extracted = 0
             num_rc_subsequences_extracted = 0
             num_rejected = 0
+
+            LOGGER.debug("Writing TSV split file header...")
+            read_segments_file.write("\t".join("READ_NAME", "READ_LENGTH", "SEGMENTS"))
+            read_segments_file.write("\n")
+
             LOGGER.info("Processing reads...")
 
             num_reads = 0
@@ -756,7 +774,7 @@ def split_sequences(args):
                     filtered_alignment_results = filter_alignment_results_by_position(segment_alignment_results)
 
                     # Write out our new subsequences to the output fasta file:
-                    write_sub_sequences(read_data, filtered_alignment_results, out_bam)
+                    write_sub_sequences(read_data, filtered_alignment_results, out_bam, read_segments_file)
 
                     # Track subsequence statistics:
                     num_forward_subsequences_extracted += sum(
@@ -841,6 +859,13 @@ def main(raw_args):
         "--rejected_outfile",
         help="Output bam file in which to store rejected reads.",
         default=f"{base_outfile_name}.rejected.bam",
+        required=False,
+    )
+
+    parser.add_argument(
+        "--annotated_read_sections_file",
+        help="Output TSV in which to put read segmentation information.",
+        default=f"{base_outfile_name}.split_segments.tsv",
         required=False,
     )
 
