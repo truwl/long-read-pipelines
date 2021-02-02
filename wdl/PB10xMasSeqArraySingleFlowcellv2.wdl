@@ -186,15 +186,15 @@ workflow PB10xMasSeqSingleFlowcellv2 {
                         mem_gb              = 16
                 }
 
-                # Alternate splitting mechanism here.
-                # Uncomment after it's been tested better.
+#                # Alternate splitting mechanism here.
+#                # Uncomment after it's been tested better.
 #                call CART.SplitSequenceOnDelimiters {
 #                    input:
 #                        reads_file          = corrected_shard,
 #                        delimiters_fasta    = segments_fasta,
 #                        max_read_length     = 50000,
 #                        min_qual            = 5.0,
-#                        mem_gb              = 8
+#                        mem_gb              = 16
 #                }
             }
 
@@ -205,9 +205,15 @@ workflow PB10xMasSeqSingleFlowcellv2 {
             call Utils.MergeFiles as MergeArrayElementInitialSections_1 { input: files_to_merge = ExtractBoundedReadSectionsTask.initial_section_alignments, merged_file_name = "EBR_initial_sections.txt" }
             call Utils.MergeFiles as MergeArrayElementFinalSections_1 { input: files_to_merge = ExtractBoundedReadSectionsTask.final_section_alignments, merged_file_name = "EBR_final_sections.txt" }
 
+#            # Merge all outputs of SplitSequenceOnDelimiters:
+#            call Utils.MergeBams as MergeSplitArrayElements_1 { input: bams = SplitSequenceOnDelimiters.split_sequences, prefix = SM + "_ArrayElements_intermediate_1" }
+#            call Utils.MergeBams as MergeSplitArrayElementRejectedReads_1 { input: bams = SplitSequenceOnDelimiters.rejected_reads, prefix = SM + "_RejectedArrays_intermediate_1" }
+#            call Utils.MergeTsvFiles as MergeSplitArrayElementAlignmentAnnotations_1 { input: tsv_files = SplitSequenceOnDelimiters.seq_annotations, prefix = SM + "_ArrayAlignmentAnnotations_intermediate_1" }
+
             call AR.Minimap2 as AlignArrayElements {
                 input:
                     reads      = [ MergeArrayElementSubShards_1.merged_file ],
+#                    reads      = [ MergeSplitArrayElements_1.merged_bam ],
                     ref_fasta  = ref_fasta,
                     RG         = RG_array_elements,
                     map_preset = "splice"
@@ -248,6 +254,11 @@ workflow PB10xMasSeqSingleFlowcellv2 {
         call Utils.MergeFiles as MergeArrayElementMarkerAlignments_2 { input: files_to_merge = MergeArrayElementMarkerAlignments_1.merged_file, merged_file_name = "EBR_marker_alignments.txt" }
         call Utils.MergeFiles as MergeArrayElementInitialSections_2 { input: files_to_merge = MergeArrayElementInitialSections_1.merged_file, merged_file_name = "EBR_initial_sections.txt" }
         call Utils.MergeFiles as MergeArrayElementFinalSections_2 { input: files_to_merge = MergeArrayElementFinalSections_1.merged_file, merged_file_name = "EBR_final_sections.txt" }
+
+#        # Merge all sharded merged outputs of SplitSequenceOnDelimiters:
+#        call Utils.MergeBams as MergeSplitArrayElements_2 { input: bams = MergeSplitArrayElements_1.merged_bam, prefix = SM + "_ArrayElements_intermediate_2" }
+#        call Utils.MergeBams as MergeSplitArrayElementRejectedReads_2 { input: bams = MergeSplitArrayElementRejectedReads_1.merged_bam, prefix = SM + "_RejectedArrays_intermediate_2" }
+#        call Utils.MergeTsvFiles as MergeSplitArrayElementAlignmentAnnotations_2 { input: tsv_files = MergeSplitArrayElementAlignmentAnnotations_1.merged_tsv, prefix = SM + "_ArrayAlignmentAnnotations_intermediate_2" }
 
         # Merge the sharded zmw subread stats:
         call Utils.MergeTsvFiles as MergeShardedZmwSubreadStats {
@@ -328,6 +339,12 @@ workflow PB10xMasSeqSingleFlowcellv2 {
     call Utils.MergeFiles as MergeArrayElementMarkerAlignments_3 { input: files_to_merge = MergeArrayElementMarkerAlignments_2.merged_file, merged_file_name = "EBR_marker_alignments.txt" }
     call Utils.MergeFiles as MergeArrayElementInitialSections_3 { input: files_to_merge = MergeArrayElementInitialSections_2.merged_file, merged_file_name = "EBR_initial_sections.txt" }
     call Utils.MergeFiles as MergeArrayElementFinalSections_3 { input: files_to_merge = MergeArrayElementFinalSections_2.merged_file, merged_file_name = "EBR_final_sections.txt" }
+
+#    # Merge all sharded merged outputs of SplitSequenceOnDelimiters:
+#    # Phew.  This is a lot of merging.
+#    call Utils.MergeBams as MergeSplitArrayElements_3 { input: bams = MergeSplitArrayElements_2.merged_bam, prefix = SM + "_ArrayElements" }
+#    call Utils.MergeBams as MergeSplitArrayElementRejectedReads_3 { input: bams = MergeSplitArrayElementRejectedReads_2.merged_bam, prefix = SM + "_RejectedArrays" }
+#    call Utils.MergeTsvFiles as MergeSplitArrayElementAlignmentAnnotations_3 { input: tsv_files = MergeSplitArrayElementAlignmentAnnotations_2.merged_tsv, prefix = SM + "_ArrayAlignmentAnnotations" }
 
     # Merge the 10x merged stats:
     call Utils.MergeCountTsvFiles as Merge10XStats_2 { input: count_tsv_files = Merge10XStats_1.merged_tsv }

@@ -546,7 +546,6 @@ def get_processed_results_from_bwa_mem_file(file_path, minqual, minbases):
             processed_results.append(p)
 
     # Sort by the order in which they appear in the read:
-    # NOTE: For this tool, this sort isn't strictly necessary and can be removed to save time
     processed_results.sort(key=lambda x: x.read_start_pos)
 
     for r in processed_results:
@@ -590,7 +589,7 @@ def filter_alignment_results_by_position(segment_alignment_results):
             num_filtered += len(v) - 1
 
     LOGGER.info(f"Filtered {num_filtered} results.")
-    LOGGER.info(f"Returning {len(filtered_results)} results.")
+    LOGGER.debug(f"Returning {len(filtered_results)} results.")
 
     return filtered_results
 
@@ -679,6 +678,7 @@ def write_sub_sequences(read_data, aligned_delimiters, out_bam_file, out_tsv_fil
     out_bam_file.write(a)
 
     out_tsv_file.write('\n')
+
 
 def split_sequences(args):
     """Main CLI call for the Extract Bounded Read Sections tool."""
