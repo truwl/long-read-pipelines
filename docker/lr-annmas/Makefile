@@ -6,7 +6,7 @@ TAG2 = quay.io/broad-long-read-pipelines/$(IMAGE_NAME):latest
 TAG3 = us.gcr.io/broad-dsp-lrma/$(IMAGE_NAME):$(VERSION)
 TAG4 = us.gcr.io/broad-dsp-lrma/$(IMAGE_NAME):latest
 
-all: build push
+all: | build push
 
 build:
 	docker build -t $(TAG1) -t $(TAG2) -t $(TAG3) -t $(TAG4) .
