@@ -773,7 +773,6 @@ task CollectZmwSubreadStats {
     }
 }
 
-
 task CollectPolymeraseReadLengths {
     input {
         String gcs_input_dir
@@ -783,13 +782,14 @@ task CollectPolymeraseReadLengths {
         RuntimeAttr? runtime_attr_override
     }
 
+    String indir = sub(gcs_input_dir, "/$", "")
     Int disk_size = 2*ceil(size(subreads, "GB"))
 
     command <<<
         set -euxo pipefail
 
         # Find our corresponding scraps file:
-        subreads_base_name=$( basename $gcs_input_dir | sed 's#.subreads.bam$##' )
+        subreads_base_name=$( basename ~{subreads} | sed 's#.subreads.bam$##' )
         gsutil ls ~{gcs_input_dir}/**scraps.bam | grep "$subreads_base_name" > scraps_file_name.txt
         if [[ $( wc -l scraps_file_name.txt | awk '{print $1}' ) -ne 1 ]] ; then
             echo "ERROR: Cannot match scraps file to given subreads file: $subreads_base_name" 1>&2
