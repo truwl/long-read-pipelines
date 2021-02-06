@@ -139,7 +139,7 @@ workflow PB10xMasSeqSingleFlowcellv2 {
             scatter (subsharded_subreads in SubshardRawSubreads.unmapped_shards) {
 
                 # Get ZMW Subread stats here to shard them out wider and make it faster:
-                call PB.CollectZmwSubreadStats as CollectZmwSubreadStats_subsharded{
+                call PB.CollectZmwSubreadStats as CollectZmwSubreadStats_subsharded {
                     input:
                         subreads = subsharded_subreads,
                         prefix = SM + "_zmw_subread_stats"
