@@ -76,10 +76,8 @@ workflow PB10xMasSeqSingleFlowcellv2 {
 
     # Get polymerase read length information:
 
-#    scatter (subread_bam in FindBams.subread_bams) {
-    scatter (subread_indx in range(length(FindBams.subread_bams))) {
+    scatter (subread_bam in FindBams.subread_bams) {
 
-        String subread_bam = FindBams.subread_bams[subread_indx]
         call PB.GetRunInfo { input: subread_bam = subread_bam }
 
         String SM  = select_first([sample_name, GetRunInfo.run_info["SM"]])
@@ -97,8 +95,8 @@ workflow PB10xMasSeqSingleFlowcellv2 {
         # Get statistics on polymerase reads:
         call PB.CollectPolymeraseReadLengths {
             input:
-                subreads = FindBams.subread_bams[subread_indx],
-                scraps = FindBams.scraps_bams[subread_indx],
+                gcs_input_dir = gcs_input_dir,
+                subreads = subread_bam,
                 prefix = SM + "_polymerase_read_lengths"
         }
 
@@ -437,7 +435,7 @@ workflow PB10xMasSeqSingleFlowcellv2 {
             rna_seq_metrics_file             = ArrayElementRnaSeqMetrics.rna_metrics,
 
             workflow_dot_file                = workflow_dot_file,
-            prefix                           = SM + "_",
+            prefix                           = "masseq_",
 
             runtime_attr_override            = create_report_runtime_attrs,
     }

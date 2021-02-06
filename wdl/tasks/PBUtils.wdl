@@ -13,15 +13,11 @@ task FindBams {
 
     command <<<
         set -euxo pipefail
-
-        # Sort outputs so scraps and subreads will be at the same indices in the resulting arrays:
         gsutil ls ~{indir}/**subreads.bam | sort > subread_bams.txt
-        gsutil ls ~{indir}/**scraps.bam   | sort > scraps_bams.txt
     >>>
 
     output {
         Array[String] subread_bams = read_lines("subread_bams.txt")
-        Array[String] scraps_bams = read_lines("scraps_bams.txt")
     }
 
     #########################
@@ -780,8 +776,8 @@ task CollectZmwSubreadStats {
 
 task CollectPolymeraseReadLengths {
     input {
+        String gcs_input_dir
         File subreads
-        File scraps
         String prefix = "polymerase_read_lengths"
 
         RuntimeAttr? runtime_attr_override
@@ -791,7 +787,25 @@ task CollectPolymeraseReadLengths {
 
     command <<<
         set -euxo pipefail
-        python3 /usr/local/bin/collect_polymerase_read_lengths.py -o ~{prefix}.tsv -s ~{subreads} -p ~{scraps}
+
+        # Find our corresponding scraps file:
+        subreads_base_name=$( basename $gcs_input_dir | sed 's#.subreads.bam$##' )
+        gsutil ls ~{gcs_input_dir}/**scraps.bam | grep "$subreads_base_name" > scraps_file_name.txt
+        if [[ $( wc -l scraps_file_name.txt | awk '{print $1}' ) -ne 1 ]] ; then
+            echo "ERROR: Cannot match scraps file to given subreads file: $subreads_base_name" 1>&2
+            echo "       Multiple files returned:" 1>&2
+            cat scraps_file_name.txt 1>&2
+            return 1
+        fi
+
+        # Localize the scraps so we can read them:
+        remote_scraps="$(head -n1 scraps_file_name.txt)"
+        local_scraps="$(basename $remote_scraps)"
+        echo "Localizing scraps: $remote_scraps -> $local_scraps"
+        gsutil -m cp $remote_scraps .
+
+        # Calculate our polymerase read lengths:
+        python3 /usr/local/bin/collect_polymerase_read_lengths.py -o ~{prefix}.tsv -s ~{subreads} -p $local_scraps
     >>>
 
     output {
