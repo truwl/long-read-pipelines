@@ -147,6 +147,7 @@ task CCS {
         Int min_length = 10
         Int max_length = 50000
         Float min_rq = 0.99
+        Boolean hifi_kinetics = false
         Boolean by_strand = false
 
         Int cpus = 4
@@ -172,7 +173,9 @@ task CCS {
             --min-rq ~{min_rq} \
             --num-threads ~{cpus} \
             --report-file ccs_report.txt \
-            ~{if by_strand then "--by-strand" else ""} $infile ccs_unmapped.bam
+            ~{if hifi_kinetics then "--hifi-kinetics" else ""} \
+            ~{if by_strand then "--by-strand" else ""} \
+            $infile ccs_unmapped.bam
     >>>
 
     output {
