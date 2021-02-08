@@ -20,6 +20,7 @@ BARCODE_TAG = 'CB'
 RAW_BARCODE_TAG = 'CR'
 UMI_TAG = 'ZU'
 
+
 def read_barcodes(barcodes_filename):
     """
     Reads a line-separated file of barcodes. If a line ends with '-1', this suffix is removed. A gzip file is supported if the extension of the file is .gz
@@ -234,6 +235,7 @@ def to_int(seq, lEle, dEle2Int):
 
     return num
 
+
 def get_alignment(ssw, sequence, adapter_sequence, alphabet, letter_to_int, mat, open_penalty=2, extension_penalty=1):
     """
     Performs the alignment of the read end to the adapter sequence
@@ -253,9 +255,10 @@ def get_alignment(ssw, sequence, adapter_sequence, alphabet, letter_to_int, mat,
     flag = 1
     mask_length = len(adapter_sequence) // 2 if len(adapter_sequence) >= 30 else 15
 
-    qProfile = ssw.ssw_init(sequence_numbers, ctypes.c_int32(len(sequence)), mat, len(alphabet), 2)
+    q_profile = ssw.ssw_init(sequence_numbers, ctypes.c_int32(len(sequence)), mat, len(alphabet), 2)
 
-    res = ssw.ssw_align(qProfile, adapter_numbers, ctypes.c_int32(len(adapter_sequence)), open_penalty, extension_penalty, flag, 0, 0, mask_length)
+    res = ssw.ssw_align(q_profile, adapter_numbers, ctypes.c_int32(len(adapter_sequence)), open_penalty,
+                        extension_penalty, flag, 0, 0, mask_length)
 
     return res.contents.nQryEnd if res.contents.nScore > 30 else None
 
@@ -274,6 +277,11 @@ def align(read, stats, ssw, alphabet, letter_to_int, mat, read_end_length, adapt
     :param tso_sequence: The TSO sequence to align to
     :return: The sequence of the read end that the adapter was found in, the position of the last base of the adapter sequence in the read end
     """
+
+    # Only perform an alignment if we have a sequence to align:
+    if read.seq is None:
+        return None, None
+
     read_seq = read.seq
     read_seq_reversed = str(Seq(read_seq).reverse_complement())
     five_prime_end = read_seq[:read_end_length]

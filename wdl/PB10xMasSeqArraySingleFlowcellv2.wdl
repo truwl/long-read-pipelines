@@ -10,6 +10,7 @@ import "tasks/ReadsMetrics.wdl" as RM
 import "tasks/AlignedMetrics.wdl" as AM
 import "tasks/Ten_X_Tool.wdl" as TENX
 import "tasks/JupyterNotebooks.wdl" as JUPYTER
+import "tasks/Annmas.wdl" as ANNMAS
 
 workflow PB10xMasSeqSingleFlowcellv2 {
 
@@ -173,45 +174,32 @@ workflow PB10xMasSeqSingleFlowcellv2 {
 
             scatter (corrected_shard in ShardCorrectedReads.unmapped_shards) {
 
-                call CART.ExtractBoundedReadSectionsTask {
+                call ANNMAS.Annotate as AnnotateReads {
                     input:
-                        reads_file          = corrected_shard,
-                        segments_fasta      = segments_fasta,
-                        boundaries_file     = boundaries_file,
-                        max_read_length     = 50000,
-                        aligner             = "BWA_ALN",
-                        min_qual            = 5.0,
-                        mem_gb              = 16
+                        reads = corrected_shard
                 }
 
-#                # Alternate splitting mechanism here.
-#                # Uncomment after it's been tested better.
-#                call CART.SplitSequenceOnDelimiters {
-#                    input:
-#                        reads_file          = corrected_shard,
-#                        delimiters_fasta    = segments_fasta,
-#                        max_read_length     = 50000,
-#                        min_qual            = 5.0,
-#                        mem_gb              = 16
-#                }
+                call ANNMAS.Segment as SegmentAnnotatedReads {
+                    input:
+                        annotated_reads = AnnotateReads.annotated_bam
+                }
             }
 
-            # Merge all outputs of ExtractBoundedReadSectionsTask:
-            call Utils.MergeFiles as MergeArrayElementSubShards_1 { input: files_to_merge = ExtractBoundedReadSectionsTask.extracted_reads, merged_file_name = "EBR_extracted_reads.fasta" }
-            call Utils.MergeFiles as MergeArrayElementRejectedReads_1 { input: files_to_merge = ExtractBoundedReadSectionsTask.rejected_reads, merged_file_name = "EBR_rejected_reads.txt" }
-            call Utils.MergeFiles as MergeArrayElementMarkerAlignments_1 { input: files_to_merge = ExtractBoundedReadSectionsTask.raw_marker_alignments, merged_file_name = "EBR_marker_alignments.txt" }
-            call Utils.MergeFiles as MergeArrayElementInitialSections_1 { input: files_to_merge = ExtractBoundedReadSectionsTask.initial_section_alignments, merged_file_name = "EBR_initial_sections.txt" }
-            call Utils.MergeFiles as MergeArrayElementFinalSections_1 { input: files_to_merge = ExtractBoundedReadSectionsTask.final_section_alignments, merged_file_name = "EBR_final_sections.txt" }
-
-#            # Merge all outputs of SplitSequenceOnDelimiters:
-#            call Utils.MergeBams as MergeSplitArrayElements_1 { input: bams = SplitSequenceOnDelimiters.split_sequences, prefix = SM + "_ArrayElements_intermediate_1" }
-#            call Utils.MergeBams as MergeSplitArrayElementRejectedReads_1 { input: bams = SplitSequenceOnDelimiters.rejected_reads, prefix = SM + "_RejectedArrays_intermediate_1" }
-#            call Utils.MergeTsvFiles as MergeSplitArrayElementAlignmentAnnotations_1 { input: tsv_files = SplitSequenceOnDelimiters.seq_annotations, prefix = SM + "_ArrayAlignmentAnnotations_intermediate_1" }
+            # Merge all outputs of Annmas Annotate / Segment:
+            call Utils.MergeBams as MergeAnnotatedReads_1 {
+                input:
+                    bams = AnnotateReads.annotated_bam,
+                    prefix = SM + "_AnnotatedReads_intermediate_1"
+            }
+            call Utils.MergeBams as MergeArrayElements_1 {
+                input:
+                    bams = SegmentAnnotatedReads.segmented_bam,
+                    prefix = SM + "_ArrayElements_intermediate_1"
+            }
 
             call AR.Minimap2 as AlignArrayElements {
                 input:
-                    reads      = [ MergeArrayElementSubShards_1.merged_file ],
-#                    reads      = [ MergeSplitArrayElements_1.merged_bam ],
+                    reads      = [ MergeArrayElements_1.merged_bam ],
                     ref_fasta  = ref_fasta,
                     RG         = RG_array_elements,
                     map_preset = "splice"
@@ -246,17 +234,17 @@ workflow PB10xMasSeqSingleFlowcellv2 {
             }
         }
 
-        # Merge all sharded merged outputs of ExtractBoundedReadSectionsTask:
-        call Utils.MergeFiles as MergeArrayElementSubShards_2 { input: files_to_merge = MergeArrayElementSubShards_1.merged_file, merged_file_name = "EBR_extracted_reads.fasta" }
-        call Utils.MergeFiles as MergeArrayElementRejectedReads_2 { input: files_to_merge = MergeArrayElementRejectedReads_1.merged_file, merged_file_name = "EBR_rejected_reads.txt" }
-        call Utils.MergeFiles as MergeArrayElementMarkerAlignments_2 { input: files_to_merge = MergeArrayElementMarkerAlignments_1.merged_file, merged_file_name = "EBR_marker_alignments.txt" }
-        call Utils.MergeFiles as MergeArrayElementInitialSections_2 { input: files_to_merge = MergeArrayElementInitialSections_1.merged_file, merged_file_name = "EBR_initial_sections.txt" }
-        call Utils.MergeFiles as MergeArrayElementFinalSections_2 { input: files_to_merge = MergeArrayElementFinalSections_1.merged_file, merged_file_name = "EBR_final_sections.txt" }
-
-#        # Merge all sharded merged outputs of SplitSequenceOnDelimiters:
-#        call Utils.MergeBams as MergeSplitArrayElements_2 { input: bams = MergeSplitArrayElements_1.merged_bam, prefix = SM + "_ArrayElements_intermediate_2" }
-#        call Utils.MergeBams as MergeSplitArrayElementRejectedReads_2 { input: bams = MergeSplitArrayElementRejectedReads_1.merged_bam, prefix = SM + "_RejectedArrays_intermediate_2" }
-#        call Utils.MergeTsvFiles as MergeSplitArrayElementAlignmentAnnotations_2 { input: tsv_files = MergeSplitArrayElementAlignmentAnnotations_1.merged_tsv, prefix = SM + "_ArrayAlignmentAnnotations_intermediate_2" }
+        # Merge all sharded merged outputs from annotating / splitting:
+        call Utils.MergeBams as MergeAnnotatedReads_2 {
+            input:
+                bams = MergeAnnotatedReads_1.merged_bam,
+                prefix = SM + "_AnnotatedReads_intermediate_2"
+        }
+        call Utils.MergeBams as MergeArrayElements_2 {
+            input:
+                bams = MergeArrayElements_1.merged_bam,
+                prefix = SM + "_ArrayElements_intermediate_2"
+        }
 
         # Merge the sharded zmw subread stats:
         call Utils.MergeTsvFiles as MergeShardedZmwSubreadStats {
@@ -330,19 +318,18 @@ workflow PB10xMasSeqSingleFlowcellv2 {
         }
     }
 
-    # Merge all sharded merged sharded outputs of ExtractBoundedReadSectionsTask:
-    # Phew.  This is a lot of merging.
-    call Utils.MergeFiles as MergeArrayElementSubShards_3 { input: files_to_merge = MergeArrayElementSubShards_2.merged_file, merged_file_name = "EBR_extracted_reads.fasta" }
-    call Utils.MergeFiles as MergeArrayElementRejectedReads_3 { input: files_to_merge = MergeArrayElementRejectedReads_2.merged_file, merged_file_name = "EBR_rejected_reads.txt" }
-    call Utils.MergeFiles as MergeArrayElementMarkerAlignments_3 { input: files_to_merge = MergeArrayElementMarkerAlignments_2.merged_file, merged_file_name = "EBR_marker_alignments.txt" }
-    call Utils.MergeFiles as MergeArrayElementInitialSections_3 { input: files_to_merge = MergeArrayElementInitialSections_2.merged_file, merged_file_name = "EBR_initial_sections.txt" }
-    call Utils.MergeFiles as MergeArrayElementFinalSections_3 { input: files_to_merge = MergeArrayElementFinalSections_2.merged_file, merged_file_name = "EBR_final_sections.txt" }
-
-#    # Merge all sharded merged outputs of SplitSequenceOnDelimiters:
-#    # Phew.  This is a lot of merging.
-#    call Utils.MergeBams as MergeSplitArrayElements_3 { input: bams = MergeSplitArrayElements_2.merged_bam, prefix = SM + "_ArrayElements" }
-#    call Utils.MergeBams as MergeSplitArrayElementRejectedReads_3 { input: bams = MergeSplitArrayElementRejectedReads_2.merged_bam, prefix = SM + "_RejectedArrays" }
-#    call Utils.MergeTsvFiles as MergeSplitArrayElementAlignmentAnnotations_3 { input: tsv_files = MergeSplitArrayElementAlignmentAnnotations_2.merged_tsv, prefix = SM + "_ArrayAlignmentAnnotations" }
+    # Merge all sharded merged sharded outputs for Annotation / Segmentation:
+    # TODO: Fix SM[0] to be the right sample name if multiple samples are found.
+    call Utils.MergeBams as MergeAnnotatedReads_3 {
+        input:
+            bams = MergeAnnotatedReads_2.merged_bam,
+            prefix = SM[0] + "_AnnotatedReads"
+    }
+    call Utils.MergeBams as MergeArrayElements_3 {
+        input:
+            bams = MergeArrayElements_2.merged_bam,
+            prefix = SM[0] + "_ArrayElements"
+    }
 
     # Merge the 10x merged stats:
     call Utils.MergeCountTsvFiles as Merge10XStats_2 { input: count_tsv_files = Merge10XStats_1.merged_tsv }
@@ -409,6 +396,7 @@ workflow PB10xMasSeqSingleFlowcellv2 {
     RuntimeAttr create_report_runtime_attrs = object {
             preemptible_tries:  0
     }
+    ## TODO: THIS WILL CURRENTLY FAIL.  IT IS EXPECTED BECAUSE I HAVE NOT FIXED IT YET.
     call JUPYTER.PB10xMasSeqSingleFlowcellReport as GenerateStaticReport {
         input:
             notebook_template                = jupyter_template_static,
@@ -422,9 +410,9 @@ workflow PB10xMasSeqSingleFlowcellv2 {
             array_element_bam_file           = MergeAlignedArrayElements.merged_bam,
             ccs_rejected_bam_file            = MergeAllCCSRejectedBams.merged_bam,
 
-            ebr_element_marker_alignments    = MergeArrayElementMarkerAlignments_3.merged_file,
-            ebr_initial_section_alignments   = MergeArrayElementInitialSections_3.merged_file,
-            ebr_final_section_alignments     = MergeArrayElementFinalSections_3.merged_file,
+            ebr_element_marker_alignments    = MergeAllAlignedCCSBams.merged_bai,
+            ebr_initial_section_alignments   = MergeAllAlignedCCSBams.merged_bai,
+            ebr_final_section_alignments     = MergeAllAlignedCCSBams.merged_bai,
             ebr_bounds_file                  = boundaries_file,
 
             zmw_subread_stats_file           = MergeShardedZmwSubreadStats.merged_tsv[0],
@@ -463,15 +451,14 @@ workflow PB10xMasSeqSingleFlowcellv2 {
     }
 
     # Finalize all the Extracted Bounded Regions data:
-    String extractBoundedRegionsDir = base_out_dir + "/extract_bounded_regions"
+    String extractBoundedRegionsDir = base_out_dir + "/annmas"
     call FF.FinalizeToDir as FinalizeEbrData {
         input:
             files = [
-                MergeArrayElementSubShards_3.merged_file,
-                MergeArrayElementRejectedReads_3.merged_file,
-                MergeArrayElementMarkerAlignments_3.merged_file,
-                MergeArrayElementInitialSections_3.merged_file,
-                MergeArrayElementFinalSections_3.merged_file
+                MergeAnnotatedReads_3.merged_bam,
+                MergeAnnotatedReads_3.merged_bai,
+                MergeArrayElements_3.merged_bam,
+                MergeArrayElements_3.merged_bai
             ],
             outdir = extractBoundedRegionsDir,
             keyfile = GenerateStaticReport.html_report
