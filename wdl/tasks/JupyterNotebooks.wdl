@@ -22,10 +22,7 @@ task PB10xMasSeqSingleFlowcellReport {
         File array_element_bam_file
         File ccs_rejected_bam_file
 
-        File ebr_element_marker_alignments
-        File ebr_initial_section_alignments
-        File ebr_final_section_alignments
-        File ebr_bounds_file
+        File annotated_bam_file
 
         File zmw_subread_stats_file
         File polymerase_read_lengths_file
@@ -53,10 +50,7 @@ task PB10xMasSeqSingleFlowcellReport {
         array_element_bam_file : "Aligned reads file in BAM format containing aligned MASSeq array elements as individual reads."
         ccs_rejected_bam_file : "Bam file containing all subreads from zmws that were rejected by CCS."
 
-        ebr_element_marker_alignments : "Raw marker alignments file from ExtractBoundedReads for the data from this MASSeq run."
-        ebr_initial_section_alignments : "Initial section alignments file from ExtractBoundedReads for the data from this MASSeq run."
-        ebr_final_section_alignments : "Final section alignments file from ExtractBoundedReads for the data from this MASSeq run."
-        ebr_bounds_file : "Text file containing two comma-separated known segment names on each line.  These entries define delimited sections that were extracted from the reads and treated as individual array elements."
+        annotated_bam_file : "Bam file containing ccs corrected reads with annotated sections in the SG tag."
 
         zmw_subread_stats_file : "File containing statistics about the subreads from each ZMW (created by collect_zmw_subread_stats.py in the PBUtils docker container)."
         polymerase_read_lengths_file : "File containing the lengths of each polymerase read from the sequencer (as created by collect_polymerase_read_lengths.py)"
@@ -82,10 +76,7 @@ task PB10xMasSeqSingleFlowcellReport {
             size(ccs_bam_file, "GB") +
             size(array_element_bam_file, "GB") +
             size(ccs_rejected_bam_file, "GB") +
-            size(ebr_element_marker_alignments, "GB") +
-            size(ebr_initial_section_alignments, "GB") +
-            size(ebr_final_section_alignments, "GB") +
-            size(ebr_bounds_file, "GB") +
+            size(annotated_bam_file, "GB") +
             size(ccs_bam_file, "GB") +
             size(zmw_subread_stats_file, "GB") +
             size(polymerase_read_lengths_file, "GB") +
@@ -126,10 +117,7 @@ task PB10xMasSeqSingleFlowcellReport {
         echo "~{array_element_bam_file}" >> mas-seq_qc_inputs.config
         echo "~{ccs_rejected_bam_file}" >> mas-seq_qc_inputs.config
 
-        echo "~{ebr_element_marker_alignments}" >> mas-seq_qc_inputs.config
-        echo "~{ebr_initial_section_alignments}" >> mas-seq_qc_inputs.config
-        echo "~{ebr_final_section_alignments}" >> mas-seq_qc_inputs.config
-        echo "~{ebr_bounds_file}" >> mas-seq_qc_inputs.config
+        echo "~{annotated_bam_file}" >> mas-seq_qc_inputs.config
 
         echo "~{zmw_subread_stats_file}" >> mas-seq_qc_inputs.config
         echo "~{polymerase_read_lengths_file}" >> mas-seq_qc_inputs.config

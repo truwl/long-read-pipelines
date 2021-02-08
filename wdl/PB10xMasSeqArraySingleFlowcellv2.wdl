@@ -396,7 +396,7 @@ workflow PB10xMasSeqSingleFlowcellv2 {
     RuntimeAttr create_report_runtime_attrs = object {
             preemptible_tries:  0
     }
-    ## TODO: THIS WILL CURRENTLY FAIL.  IT IS EXPECTED BECAUSE I HAVE NOT FIXED IT YET.
+    ## TODO: THIS WILL CURRENTLY FAIL.  THIS IS EXPECTED BECAUSE I HAVE NOT FIXED IT YET.
     call JUPYTER.PB10xMasSeqSingleFlowcellReport as GenerateStaticReport {
         input:
             notebook_template                = jupyter_template_static,
@@ -410,10 +410,7 @@ workflow PB10xMasSeqSingleFlowcellv2 {
             array_element_bam_file           = MergeAlignedArrayElements.merged_bam,
             ccs_rejected_bam_file            = MergeAllCCSRejectedBams.merged_bam,
 
-            ebr_element_marker_alignments    = MergeAllAlignedCCSBams.merged_bai,
-            ebr_initial_section_alignments   = MergeAllAlignedCCSBams.merged_bai,
-            ebr_final_section_alignments     = MergeAllAlignedCCSBams.merged_bai,
-            ebr_bounds_file                  = boundaries_file,
+            annotated_bam_file               = MergeAnnotatedReads_3.merged_bam,
 
             zmw_subread_stats_file           = MergeShardedZmwSubreadStats.merged_tsv[0],
             polymerase_read_lengths_file     = CollectPolymeraseReadLengths.polymerase_read_lengths_tsv[0],
@@ -423,7 +420,7 @@ workflow PB10xMasSeqSingleFlowcellv2 {
             rna_seq_metrics_file             = ArrayElementRnaSeqMetrics.rna_metrics,
 
             workflow_dot_file                = workflow_dot_file,
-            prefix                           = "masseq_",
+            prefix                           = SM[0] + "_masseq_",
 
             runtime_attr_override            = create_report_runtime_attrs,
     }
