@@ -1,10 +1,10 @@
-FROM continuumio/miniconda3
+FROM python:3.7.9-slim-buster
 
 MAINTAINER Kiran V Garimella
 
 # install gsutil
-RUN apt update
-RUN apt install -y curl git-lfs time datamash
+RUN apt-get update
+RUN apt-get install -y curl git-lfs time datamash
 RUN curl https://sdk.cloud.google.com | bash
 
 RUN git clone https://github.com/broadinstitute/annmas.git
@@ -16,3 +16,7 @@ RUN cd annmas && \
 
 # activate conda environment
 RUN echo "source /annmas/venv/bin/activate" > ~/.bashrc
+
+# We want this to be interactive:
+CMD ["/bin/bash"]
+
