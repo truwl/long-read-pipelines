@@ -84,3 +84,4 @@ ADD tool_rle.py /lrma/tool_rle.py
 
 RUN echo "source activate 10x_tool" > ~/.bashrc
 RUN pip3 install pysam biopython
+
