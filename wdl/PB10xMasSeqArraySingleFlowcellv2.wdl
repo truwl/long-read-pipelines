@@ -216,7 +216,7 @@ workflow PB10xMasSeqSingleFlowcellv2 {
                     runtime_attr_override = align_ccs_reads_runtime_attrs
             }
 
-            call TENX.AnnotateBarcodesAndUMIs as AnnotateArrayElements {
+            call TENX.AnnotateBarcodesAndUMIs as TenxAnnotateArrayElements {
                 input:
                     bam_file = AlignArrayElements.aligned_bam,
                     bam_index = AlignArrayElements.aligned_bai,
@@ -257,10 +257,10 @@ workflow PB10xMasSeqSingleFlowcellv2 {
         }
 
         # Merge the 10x stats:
-        call Utils.MergeCountTsvFiles as Merge10XStats_1 { input: count_tsv_files = AnnotateArrayElements.stats }
+        call Utils.MergeCountTsvFiles as Merge10XStats_1 { input: count_tsv_files = TenxAnnotateArrayElements.stats }
 
         # Merge all Aligned array elements together for this Subread BAM:
-        call Utils.MergeBams as MergeAlignedAnnoatatedArrayElementChunk { input: bams = AnnotateArrayElements.output_bam }
+        call Utils.MergeBams as MergeAlignedAnnoatatedArrayElementChunk { input: bams = TenxAnnotateArrayElements.output_bam }
 
         # Merge all Aligned array elements together for this Subread BAM:
         call Utils.MergeBams as MergeAlignedArrayElementChunk { input: bams = AlignArrayElements.aligned_bam }
@@ -450,14 +450,14 @@ workflow PB10xMasSeqSingleFlowcellv2 {
 
     # Finalize all the 10x metrics here:
     String tenXToolMetricsDir = metrics_out_dir + "/ten_x_tool_metrics"
-    scatter ( i in range(length(AnnotateArrayElements.output_bam[0]))) {
+    scatter ( i in range(length(TenxAnnotateArrayElements.output_bam[0]))) {
         call FF.FinalizeToDir as FinalizeTenXRgStats {
             input:
                 files = [
-                    AnnotateArrayElements.barcode_stats[0][i],
-                    AnnotateArrayElements.starcode[0][i],
-                    AnnotateArrayElements.stats[0][i],
-                    AnnotateArrayElements.timing_info[0][i]
+                    TenxAnnotateArrayElements.barcode_stats[0][i],
+                    TenxAnnotateArrayElements.starcode[0][i],
+                    TenxAnnotateArrayElements.stats[0][i],
+                    TenxAnnotateArrayElements.timing_info[0][i]
                 ],
                 outdir = tenXToolMetricsDir + "/" + i,
                 keyfile = GenerateStaticReport.html_report
