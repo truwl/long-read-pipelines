@@ -34,8 +34,6 @@ workflow PB10xMasSeqSingleFlowcellv2 {
         File ref_fasta_index = "gs://broad-dsde-methods-long-reads/resources/references/grch38/Homo_sapiens_assembly38.fasta.fai"
         File ref_fasta_dict = "gs://broad-dsde-methods-long-reads/resources/references/grch38/Homo_sapiens_assembly38.dict"
 
-        File ref_flat_annotations = "gs://broad-dsde-methods-long-reads/resources/references/grch38/refFlat.txt"
-
         File jupyter_template_static = "gs://broad-dsde-methods-long-reads/resources/MASseq_0.0.2/MAS-seq_QC_report_template-static.ipynb"
         File workflow_dot_file = "gs://broad-dsde-methods-long-reads/resources/MASseq_0.0.2/PB10xMasSeqArraySingleFlowcellv2.dot"
 
@@ -57,8 +55,6 @@ workflow PB10xMasSeqSingleFlowcellv2 {
         ref_fasta : "FASTA file containing the reference sequence to which the input data should be aligned."
         ref_fasta_index : "FASTA index file for the given ref_fasta file."
         ref_fasta_dict : "Sequence dictionary file for the given ref_fasta file."
-
-        ref_flat_annotations : "RefFlat file containing genomic annotations (used for RNASeq metrics).  This file must match the reference to which the input data are aligned."
 
         jupyter_template_static : "Jupyter notebook / ipynb file containing a template for the QC report which will contain static plots.  This should contain the same information as the jupyter_template_interactive file, but with static images."
         workflow_dot_file : "DOT file containing the representation of this WDL to be included in the QC reports.  This can be generated with womtool."
@@ -379,14 +375,6 @@ workflow PB10xMasSeqSingleFlowcellv2 {
             base_metrics_out_dir = metrics_out_dir + "/aligned_array_element_metrics"
     }
 
-    # RNASeqMetrics:
-    call AM.RnaSeqMetrics as ArrayElementRnaSeqMetrics {
-        input:
-            bam = MergeAlignedArrayElements.merged_bam,
-            bai = MergeAlignedArrayElements.merged_bai,
-            ref_flat = ref_flat_annotations
-    }
-
     ##########
     # Create Report:
     ##########
@@ -417,7 +405,6 @@ workflow PB10xMasSeqSingleFlowcellv2 {
             approx_raw_subread_array_lengths = MergeShardedRawSubreadArrayElementCounts.merged_tsv[0],
 
             ten_x_metrics_file               = Merge10XStats_2.merged_tsv,
-            rna_seq_metrics_file             = ArrayElementRnaSeqMetrics.rna_metrics,
 
             workflow_dot_file                = workflow_dot_file,
             prefix                           = SM[0] + "_masseq_",
@@ -481,13 +468,6 @@ workflow PB10xMasSeqSingleFlowcellv2 {
         input:
             files = [ MergeAnnotatedAlignedArrayElements.merged_bam, MergeAnnotatedAlignedArrayElements.merged_bai ],
             outdir = base_out_dir + "/annotated_aligned_array_elements",
-            keyfile = GenerateStaticReport.html_report
-    }
-
-    call FF.FinalizeToDir as FinalizeRnaSeqMetrics {
-        input:
-            files = [ ArrayElementRnaSeqMetrics.rna_metrics ],
-            outdir = metrics_out_dir,
             keyfile = GenerateStaticReport.html_report
     }
 

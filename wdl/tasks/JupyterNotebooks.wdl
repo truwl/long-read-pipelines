@@ -29,7 +29,6 @@ task PB10xMasSeqSingleFlowcellReport {
         File approx_raw_subread_array_lengths
 
         File ten_x_metrics_file
-        File rna_seq_metrics_file
 
         File workflow_dot_file
 
@@ -57,7 +56,6 @@ task PB10xMasSeqSingleFlowcellReport {
         approx_raw_subread_array_lengths : "File containing the approximate array length information from the raw (pre-ccs) subreads file  (created by get_approx_raw_subread_array_lengths.py in the Cartographer docker container)."
 
         ten_x_metrics_file : "Stats file from the 10x tool run for the data in this MASSeq run."
-        rna_seq_metrics_file : "Picard CollectRnaSeqMetrics metrics file created from the aligned MASSeq array elements."
         workflow_dot_file : "DOT file containing the representation of this workflow used to create and analyze the data.  This is included in the QC reports (the DOT file can be generated with womtool)."
 
         prefix : "[optional] Prefix to prepend to the name of the generated report."
@@ -81,7 +79,6 @@ task PB10xMasSeqSingleFlowcellReport {
             size(zmw_subread_stats_file, "GB") +
             size(polymerase_read_lengths_file, "GB") +
             size(ten_x_metrics_file, "GB") +
-            size(rna_seq_metrics_file, "GB") +
             size(workflow_dot_file, "GB")
         ))
 
@@ -124,7 +121,6 @@ task PB10xMasSeqSingleFlowcellReport {
         echo "~{approx_raw_subread_array_lengths}" >> mas-seq_qc_inputs.config
 
         echo "~{ten_x_metrics_file}" >> mas-seq_qc_inputs.config
-        echo "~{rna_seq_metrics_file}" >> mas-seq_qc_inputs.config
 
         echo "~{workflow_dot_file}" >> mas-seq_qc_inputs.config
 
