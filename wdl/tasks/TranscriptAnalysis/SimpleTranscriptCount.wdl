@@ -168,7 +168,7 @@ END_SCRIPT
 
         echo "Aligning reads and filtering for only primary alignments..."
         samtools fastq ~{reads_bam} \
-            | ~/minimap2-2.17_x64-linux/minimap2 -ayYL --MD --eqx -x asm20 -t4 ~{transcript_isoforms_fasta} - \
+            | minimap2 -ayYL --MD --eqx -x asm20 -t4 ~{transcript_isoforms_fasta} - \
             | samtools view -hb -F 2304 - \
         > ~{out_base_name}.bam
 
