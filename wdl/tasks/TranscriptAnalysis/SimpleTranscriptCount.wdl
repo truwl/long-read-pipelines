@@ -157,7 +157,7 @@ for line in sys.stdin.readlines():
         tx_qual_list_dict[tx_name] = [qual]
 
 print("Transcript_Name\tCount\tMean_Quality")
-for tx_name, quals in dict(sorted(tx_qual_list_dict.items(), key=lambda item: len(item[1]))).items():
+for tx_name, quals in dict(sorted(tx_qual_list_dict.items(), key=lambda item: len(item[1]), reverse=True)).items():
     print(f"{tx_name}\t{len(quals)}\t{(sum(quals)/len(quals)):2.3f}")
 
 END_SCRIPT
