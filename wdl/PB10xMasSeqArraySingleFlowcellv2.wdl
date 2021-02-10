@@ -71,8 +71,6 @@ workflow PB10xMasSeqSingleFlowcellv2 {
 
     call PB.FindBams { input: gcs_input_dir = gcs_input_dir }
 
-    # Get polymerase read length information:
-
     scatter (subread_bam in FindBams.subread_bams) {
 
         call PB.GetRunInfo { input: subread_bam = subread_bam }
