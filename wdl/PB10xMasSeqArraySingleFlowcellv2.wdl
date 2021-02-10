@@ -95,7 +95,7 @@ workflow PB10xMasSeqSingleFlowcellv2 {
                 prefix = SM + "_polymerase_read_lengths"
         }
 
-        call Utils.ShardLongReadsWithCopy { input: unmapped_files = [ subread_bam ], num_reads_per_split = 2000000 }
+        call Utils.ShardLongReadsWithCopy { input: unmapped_files = [ subread_bam ], num_reads_per_split = 100000 }
 
         scatter (subreads in ShardLongReadsWithCopy.unmapped_shards) {
 
