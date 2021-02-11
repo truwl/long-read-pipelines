@@ -1,9 +1,9 @@
 version 1.0
 
-workflow QuantifyTranscriptReads {
+workflow QuantifySIRVs {
 
     meta {
-        description : "Quantify transcript isoforms simple counting of aligned reads to transcripts.  Assumes each read is a single, complete transcript."
+        description : "Quantify SIRV isoforms simple counting of aligned reads to transcripts.  Assumes each read is a single, complete transcript."
         author : "Jonn Smith"
         email : "jonn@broadinstitute.org"
     }
@@ -14,7 +14,7 @@ workflow QuantifyTranscriptReads {
         # Required:
 
         File reads_bam
-        File transcript_isoforms_fasta
+        File sirv_tsv
         String prefix = ""
 
         Int? mem_gb
@@ -26,7 +26,7 @@ workflow QuantifyTranscriptReads {
 
     parameter_meta {
         reads_bam : "Bam file containing transcript reads to be aligned to the given transcript isoforms file."
-        transcript_isoforms_fasta : "FASTA file containing isoforms sequences to quantify."
+        sirv_tsv : "TSV file containing the SIRVs to quantify and their concentrations  (format: Name|Concentration|PolyA_Length|Sequence)."
         prefix : "[optional] Prefix to prepend to the output file name."
 
         mem_gb : "[optional] Amount of memory to give to the machine running each task in this workflow."
@@ -36,31 +36,31 @@ workflow QuantifyTranscriptReads {
         boot_disk_size_gb : "[optional] Amount of boot disk space (in Gb) to give to each machine running each task in this workflow."
     }
 
-    call QuantifyTranscriptReadsTask {
+    call QuantifySIRVsTask {
         input:
-            reads_bam                 = reads_bam,
-            transcript_isoforms_fasta = transcript_isoforms_fasta,
-            prefix                    = prefix
+            reads_bam = reads_bam,
+            sirv_tsv  = sirv_tsv,
+            prefix    = prefix
     }
 
     # ------------------------------------------------
     # Outputs:
     output {
       # Default output file name:
-      File aligned_reads  = QuantifyTranscriptReadsTask.aligned_reads
-      File unmapped_reads = QuantifyTranscriptReadsTask.unmapped_reads
-      File count_table    = QuantifyTranscriptReadsTask.count_table
+      File aligned_reads  = QuantifySIRVsTask.aligned_reads
+      File unmapped_reads = QuantifySIRVsTask.unmapped_reads
+      File count_table    = QuantifySIRVsTask.count_table
 
-      File timing_info   = QuantifyTranscriptReadsTask.timing_info
-      File memory_log    = QuantifyTranscriptReadsTask.memory_log
+      File timing_info   = QuantifySIRVsTask.timing_info
+      File memory_log    = QuantifySIRVsTask.memory_log
     }
 }
 
 
-task QuantifyTranscriptReadsTask {
+task QuantifySIRVsTask {
 
     meta {
-        description : "Quantify transcript isoforms simple counting of aligned reads to transcripts.  Assumes each read is a single, complete transcript."
+        description : "Quantify SIRV isoforms simple counting of aligned reads to transcripts.  Assumes each read is a single, complete transcript."
         author : "Jonn Smith"
         email : "jonn@broadinstitute.org"
     }
@@ -71,7 +71,7 @@ task QuantifyTranscriptReadsTask {
         # Required:
 
         File reads_bam
-        File transcript_isoforms_fasta
+        File sirv_tsv
         String prefix = ""
 
         Int? mem_gb
@@ -83,7 +83,7 @@ task QuantifyTranscriptReadsTask {
 
     parameter_meta {
         reads_bam : "Bam file containing transcript reads to be aligned to the given transcript isoforms file."
-        transcript_isoforms_fasta : "FASTA file containing isoforms sequences to quantify."
+        sirv_tsv : "TSV file containing the SIRVs to quantify and their concentrations  (format: Name|Concentration|PolyA_Length|Sequence)."
         prefix : "[optional] Prefix to prepend to the output file name."
 
         mem_gb : "[optional] Amount of memory to give to the machine running each task in this workflow."
@@ -106,7 +106,7 @@ task QuantifyTranscriptReadsTask {
     Boolean use_ssd = false
 
     # Triple our input file size for our disk size - should be plenty.
-    Float input_files_size_gb = 10*(size(reads_bam, "GiB") + size(transcript_isoforms_fasta, "GiB"))
+    Float input_files_size_gb = 10*(size(reads_bam, "GiB") + size(sirv_tsv, "GiB"))
 
     # You may have to change the following two parameter values depending on the task requirements
     Int default_ram_mb = 4096
@@ -139,11 +139,33 @@ task QuantifyTranscriptReadsTask {
         ##########################################################################################
         # Do the real work here:
 
+        # Create a fasta file from our TSV:
+        tail -n+2 ~{sirv_tsv} | awk '{printf ">%s\n%s\n", $1, $4}' > SIRVs.fasta
+
         # Create a python file to run containing our info:
         cat >count_sam_transcripts.py <<'END_SCRIPT'
 #!/usr/bin/env python
 import sys
+import csv
 
+sirv_concentration_dict = dict()
+sirv_freq_tsv = None
+if len(sys.argv) > 1:
+    sirv_freq_tsv = sys.argv[1]
+if sirv_freq_tsv:
+    with open(sirv_freq_tsv) as f:
+        reader = csv.reader(f, delimiter="\t")
+        next(reader)
+        total_concentration = 0
+        for row in reader:
+            # Only some rows have frequency information:
+            if row[1]:
+                sirv_concentration_dict[row[0]] = float(row[1])
+                total_concentration += float(row[1])
+            else:
+                sirv_concentration_dict[row[0]] = 0
+
+actual_tx_count = 0
 tx_qual_list_dict = dict()
 for line in sys.stdin.readlines():
     sp = line.split("\t")
@@ -156,19 +178,26 @@ for line in sys.stdin.readlines():
     except KeyError:
         tx_qual_list_dict[tx_name] = [qual]
 
-print("Transcript_Name\tCount\tMean_Quality")
+    actual_tx_count += 1
+
+print("Transcript_Name\tCount\tExpected_Count\tConcentration_(fraction_of_library)\tExpected_Concentration\tMean_Quality")
 for tx_name, quals in dict(sorted(tx_qual_list_dict.items(), key=lambda item: len(item[1]), reverse=True)).items():
-    print(f"{tx_name}\t{len(quals)}\t{(sum(quals)/len(quals)):2.3f}")
+    expected_concentration_percentage = sirv_concentration_dict[tx_name]/total_concentration
+    expected_count = actual_tx_count*expected_concentration_percentage
+
+    actual_concentration_percentage = len(quals)/actual_tx_count
+
+    print(f"{tx_name}\t{len(quals)}\t{expected_count:2.3f}\t{actual_concentration_percentage:2.3f}\t{expected_concentration_percentage:2.3f}\t{(sum(quals)/len(quals)):2.3f}")
 
 END_SCRIPT
         chmod +x count_sam_transcripts.py
 
         echo "Indexing input transcript isoforms fasta..."
-        samtools faidx ~{transcript_isoforms_fasta}
+        samtools faidx SIRVs.fasta
 
         echo "Aligning reads and filtering for only primary alignments..."
         samtools fastq ~{reads_bam} \
-            | minimap2 -ayYL --MD --eqx -x asm20 -t4 ~{transcript_isoforms_fasta} - \
+            | minimap2 -ayYL --MD --eqx -x asm20 -t4 SIRVs.fasta - \
             | samtools view -hb -F 2304 - \
         > ~{out_base_name}.bam
 
@@ -176,7 +205,7 @@ END_SCRIPT
         samtools view -hb -f4 ~{out_base_name}.bam > ~{out_base_name}.unmapped.bam
 
         echo "Quantifying alignments..."
-        samtools view -F 2308 ~{out_base_name}.bam | ./count_sam_transcripts.py > ~{out_base_name}transcript_count_table.tsv
+        samtools view -F 2308 ~{out_base_name}.bam | ./count_sam_transcripts.py ~{sirv_tsv} > ~{out_base_name}transcript_count_table.tsv
 
 
         ##########################################################################################
