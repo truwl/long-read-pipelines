@@ -90,16 +90,6 @@ RUN apt-get install -y libxml2-dev
 COPY install_R_packages.R install_R_packages.R
 RUN Rscript install_R_packages.R
 
-# Get SALMON 1.2.1:
-ARG salmon_version=1.2.1
-RUN wget https://github.com/COMBINE-lab/salmon/releases/download/v${salmon_version}/salmon-${salmon_version}_linux_x86_64.tar.gz && \
-    tar -zxf salmon-$salmon_version_linux_x86_64.tar.gz &&  \
-		mv salmon-latest_linux_x86_64 salmon-${salmon_version} &&  \
-		mv salmon-${salmon_version}/bin/* /usr/local/bin/ && \
-		mv salmon-${salmon_version}/lib/* /usr/local/lib/ && \
-		rm -rf salmon-${salmon_version} &&  \
-		rm salmon-${salmon_version}_linux_x86_64.tar.gz
-
 # Get scanpy:
 RUN python3.8 -m pip install scanpy
 
@@ -107,6 +97,16 @@ RUN python3.8 -m pip install scanpy
 RUN mkdir /python_scripts 
 COPY python/* /python_scripts/
 RUN chmod +x /python_scripts/*.py
+
+# Get SALMON:
+ARG salmon_version=1.4.0
+RUN wget https://github.com/COMBINE-lab/salmon/releases/download/v${salmon_version}/salmon-${salmon_version}_linux_x86_64.tar.gz && \
+    tar -zxf salmon-${salmon_version}_linux_x86_64.tar.gz &&  \
+		mv salmon-latest_linux_x86_64 salmon-${salmon_version} &&  \
+		mv salmon-${salmon_version}/bin/* /usr/local/bin/ && \
+		mv salmon-${salmon_version}/lib/* /usr/local/lib/ && \
+		rm -rf salmon-${salmon_version} &&  \
+		rm salmon-${salmon_version}_linux_x86_64.tar.gz
 
 ################################################################################
 # Final runtime configuration:
