@@ -1,5 +1,8 @@
 version 1.0
 
+import "tasks/Utils.wdl" as Utils
+import "tasks/PBUtils.wdl" as PB
+
 workflow QuantifySIRVs {
 
     meta {
@@ -17,11 +20,7 @@ workflow QuantifySIRVs {
         File sirv_tsv
         String prefix = ""
 
-        Int? mem_gb
-        Int? preemptible_attempts
-        Int? disk_space_gb
-        Int? cpu
-        Int? boot_disk_size_gb
+        Int num_redads_per_shard = 200000
     }
 
     parameter_meta {
@@ -29,30 +28,32 @@ workflow QuantifySIRVs {
         sirv_tsv : "TSV file containing the SIRVs to quantify and their concentrations  (format: Name|Concentration|PolyA_Length|Sequence)."
         prefix : "[optional] Prefix to prepend to the output file name."
 
-        mem_gb : "[optional] Amount of memory to give to the machine running each task in this workflow."
-        preemptible_attempts : "[optional] Number of times to allow each task in this workflow to be preempted."
-        disk_space_gb : "[optional] Amount of storage disk space (in Gb) to give to each machine running each task in this workflow."
-        cpu : "[optional] Number of CPU cores to give to each machine running each task in this workflow."
-        boot_disk_size_gb : "[optional] Amount of boot disk space (in Gb) to give to each machine running each task in this workflow."
+        num_shards : "[optional] Number of shards to parallelize across.  [Default: 20]"
+    }
+    call Utils.ShardLongReads { input: unmapped_files = [ reads_bam ], num_reads_per_split = num_redads_per_shard}
+
+    scatter (subreads in ShardLongReads.unmapped_shards) {
+        call QuantifySIRVsTask {
+            input:
+                reads_bam = subreads,
+                sirv_tsv  = sirv_tsv,
+                prefix    = prefix + "_"
+        }
     }
 
-    call QuantifySIRVsTask {
-        input:
-            reads_bam = reads_bam,
-            sirv_tsv  = sirv_tsv,
-            prefix    = prefix
-    }
+    call Utils.MergeBams as MergeAlignedReads { input: bams = QuantifySIRVsTask.aligned_reads, prefix = "~{prefix}_aligned" }
+    call Utils.MergeBams as MergeUnmappedReads { input: bams = QuantifySIRVsTask.unmapped_reads, prefix = "~{prefix}_unaligned" }
+    call Utils.MergeTsvFiles as MergeCountTables { input: tsv_files = QuantifySIRVsTask.count_table, prefix = "~{prefix}_counts" }
 
     # ------------------------------------------------
     # Outputs:
     output {
       # Default output file name:
-      File aligned_reads  = QuantifySIRVsTask.aligned_reads
-      File unmapped_reads = QuantifySIRVsTask.unmapped_reads
-      File count_table    = QuantifySIRVsTask.count_table
-
-      File timing_info   = QuantifySIRVsTask.timing_info
-      File memory_log    = QuantifySIRVsTask.memory_log
+      File aligned_reads        = MergeAlignedReads.merged_bam
+      File aligned_reads_index  = MergeAlignedReads.merged_bai
+      File unmapped_reads       = MergeUnmappedReads.merged_bam
+      File unmapped_reads_index = MergeUnmappedReads.merged_bai
+      File count_table          = MergeCountTables.merged_tsv
     }
 }
 
@@ -73,24 +74,12 @@ task QuantifySIRVsTask {
         File reads_bam
         File sirv_tsv
         String prefix = ""
-
-        Int? mem_gb
-        Int? preemptible_attempts
-        Int? disk_space_gb
-        Int? cpu
-        Int? boot_disk_size_gb
     }
 
     parameter_meta {
         reads_bam : "Bam file containing transcript reads to be aligned to the given transcript isoforms file."
         sirv_tsv : "TSV file containing the SIRVs to quantify and their concentrations  (format: Name|Concentration|PolyA_Length|Sequence)."
         prefix : "[optional] Prefix to prepend to the output file name."
-
-        mem_gb : "[optional] Amount of memory to give to the machine running each task in this workflow."
-        preemptible_attempts : "[optional] Number of times to allow each task in this workflow to be preempted."
-        disk_space_gb : "[optional] Amount of storage disk space (in Gb) to give to each machine running each task in this workflow."
-        cpu : "[optional] Number of CPU cores to give to each machine running each task in this workflow."
-        boot_disk_size_gb : "[optional] Amount of boot disk space (in Gb) to give to each machine running each task in this workflow."
     }
 
     # ------------------------------------------------
@@ -103,19 +92,8 @@ task QuantifySIRVsTask {
 
     # ------------------------------------------------
     # Get machine settings:
-    Boolean use_ssd = false
 
-    # Triple our input file size for our disk size - should be plenty.
-    Float input_files_size_gb = 10*(size(reads_bam, "GiB") + size(sirv_tsv, "GiB"))
-
-    # You may have to change the following two parameter values depending on the task requirements
-    Int default_ram_mb = 4096
-    Int default_disk_space_gb = ceil((input_files_size_gb * 2) + 1024)
-
-    Int default_boot_disk_size_gb = 15
-
-    # Mem is in units of GB but our command and memory runtime values are in MB
-    Int machine_mem = if defined(mem_gb) then mem_gb * 1024 else default_ram_mb
+    Int input_files_size_gb = ceil(10*(size(reads_bam, "GiB") + size(sirv_tsv, "GiB")) + 2)
 
     # ------------------------------------------------
     # Run our command:
@@ -140,7 +118,7 @@ task QuantifySIRVsTask {
         # Do the real work here:
 
         # Create a fasta file from our TSV:
-        tail -n+2 ~{sirv_tsv} | awk '{printf ">%s\n%s\n", $1, $4}' > SIRVs.fasta
+        tail -n+2 ~{sirv_tsv} |  awk 'BEGIN{FS="\t"}{printf ">%s\n%s\n", $1, $4}' > SIRVs.fasta
 
         # Create a python file to run containing our info:
         cat >count_sam_transcripts.py <<'END_SCRIPT'
@@ -187,7 +165,7 @@ for tx_name, quals in dict(sorted(tx_qual_list_dict.items(), key=lambda item: le
 
     actual_concentration_percentage = len(quals)/actual_tx_count
 
-    print(f"{tx_name}\t{len(quals)}\t{expected_count:2.3f}\t{actual_concentration_percentage:2.3f}\t{expected_concentration_percentage:2.3f}\t{(sum(quals)/len(quals)):2.3f}")
+    print(f"{tx_name}\t{len(quals)}\t{expected_count:2.3f}\t{actual_concentration_percentage:2.10f}\t{expected_concentration_percentage:2.10f}\t{(sum(quals)/len(quals)):2.3f}")
 
 END_SCRIPT
         chmod +x count_sam_transcripts.py
@@ -237,14 +215,15 @@ END_SCRIPT
 
     # ------------------------------------------------
     # Runtime settings:
-     runtime {
-         docker: "us.gcr.io/broad-dsp-lrma/lr-align:0.1.26"
-         memory: machine_mem + " MB"
-         disks: "local-disk " + select_first([disk_space_gb, default_disk_space_gb]) + if use_ssd then " SSD" else " HDD"
-         bootDiskSizeGb: select_first([boot_disk_size_gb, default_boot_disk_size_gb])
-         preemptible: select_first([preemptible_attempts, 0])
-         cpu: select_first([cpu, 1])
-     }
+    runtime {
+        cpu:                    2
+        memory:                 4 + " GiB"
+        disks:                  "local-disk " +  input_files_size_gb + " HDD"
+        bootDiskSizeGb:         10
+        preemptible:            0
+        maxRetries:             1
+        docker:                 "us.gcr.io/broad-dsp-lrma/lr-align:0.1.26"
+    }
 
     # ------------------------------------------------
     # Outputs:
