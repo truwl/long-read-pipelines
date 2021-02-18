@@ -80,12 +80,124 @@ task RunSalmonQuantTask {
     runtime {
         # This should not require much in the way of memory, space, or cpus since we're doing 1 read at a time.
         # Let's try 2 cores. 4gb mem (e2-small machine - $0.01055/hr non-preemptible)
-        docker: "us.gcr.io/broad-dsp-lrma/lr-transcript_utils:0.0.1"
+        docker: "us.gcr.io/broad-dsp-lrma/lr-transcript_utils:0.0.2"
         memory: 4 + " GiB"
         disks: "local-disk " + disk_size + " HDD"
         boot_disk_gb: 10
         preemptible: 0
         cpu: 2
+    }
+}
+
+task Alevin {
+
+    meta {
+        description : "Run Alevin on a dataset for single cell transcriptome analysis."
+        author : "Jonn Smith"
+        email : "jonn@broadinstitute.org"
+    }
+
+    input {
+        File mates1_fastq
+        File mates2_fastq
+        File cb_whitelist
+
+        File transcript_fasta
+        File? tgmap
+        Boolean allow_naive_tgmap = false
+        Int index_kmer_size = 31
+        Boolean is_gencode_transcriptome = false
+
+        String library_type = "ISR"
+        Int end = 5
+        Int umi_length = 10
+        Int barcode_length = 16
+
+        String prefix = "alevin_output"
+
+        RuntimeAttr? runtime_attr_override
+    }
+
+    Int disk_size_gb = 10 + 4*ceil(size(transcript_fasta, "GB")) + 2*ceil(size(mates1_fastq, "GB")) + 2*ceil(size(mates2_fastq, "GB")) + 3*ceil(size(cb_whitelist, "GB"))
+
+    String tgmap_file = if defined(tgmap) then tgmap else ""
+
+    command <<<
+        set -euxo pipefail
+
+        # Make a salmon index for the given transcript fasta:
+        gencode_arg=""
+        if ~{is_gencode_transcriptome} ; then
+            gencode_arg="--gencode"
+        fi
+        salmon index -i salmon_index -k ~{index_kmer_size} $gencode_arg -p 24 -t ~{transcript_fasta}
+
+        # Create our tgmap if we have to:
+        TGMAP="~{tgmap_file}"
+        if [[ $TGMAP == "" ]] ; then
+            if ~{is_gencode_transcriptome} ; then
+                grep '^>' ~{transcript_fasta} | tr -d '>' | awk 'BEGIN{FS="|";OFS="\t"}{print $1,$2}' > tgmap.tsv
+            elif ~{allow_naive_tgmap} ; then
+                # In the absence of being able to do anything else, we make a VERY naive transcript map that treats each
+                # transcript separately.  For most cases this is NOT what you want, but it is useful sometimes.
+                echo "WARNING: You didn't specify a TGMAP.  Creating naive tx->tx tgmap.  Each tx will be treated as a separate gene.  This may not be what you want."
+                echo "WARNING: You didn't specify a TGMAP.  Creating naive tx->tx tgmap.  Each tx will be treated as a separate gene.  This may not be what you want." 1>&2
+                grep '^>' ~{transcript_fasta} | awk 'BEGIN{OFS="\t"}{print $1,$1}' > tgmap.tsv
+            else
+                echo "ERROR: You didn't specify a TGMAP and 'allow_naive_tgmap' is false.  Aborting." 1>&2
+                false
+            fi
+        else
+            mv $TGMAP tgmap.tsv
+        fi
+
+        # Run alevin:
+        salmon alevin \
+            --libType ~{library_type} \
+            --end ~{end} \
+            --umiLength ~{umi_length} \
+            --barcodeLength ~{barcode_length} \
+            --output ~{prefix} \
+            --whitelist ~{cb_whitelist} \
+            --mates1 ~{mates1_fastq} \
+            --mates2 ~{mates2_fastq} \
+            --index salmon_index \
+            --tgMap tgmap.tsv \
+            --threads 24 \
+            --dumpMtx \
+            --dumpArborescences \
+            --dumpfq \
+            > ~{prefix}.fastq
+
+        # Zip up the output folder:
+        tar -zcf ~{prefix}.tar.gz ~{prefix}
+    >>>
+
+    output {
+        File output_tar_gz = "~{prefix}.tar.gz"
+        File output_fastq = "~{prefix}.fastq"
+        File tgmap = "tgmap.tsv"
+    }
+
+    #########################
+    RuntimeAttr default_attr = object {
+        cpu_cores:          24,
+        mem_gb:             64,
+        disk_gb:            disk_size_gb,
+        boot_disk_gb:       10,
+        preemptible_tries:  0,
+        max_retries:        0,
+        docker:             "us.gcr.io/broad-dsp-lrma/lr-transcript_utils:0.0.2"
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu:                    select_first([runtime_attr.cpu_cores,         default_attr.cpu_cores])
+        memory:                 select_first([runtime_attr.mem_gb,            default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " +  select_first([runtime_attr.disk_gb,           default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
+        preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
+        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -131,7 +243,7 @@ task ConvertQuantFileToCountMatrix {
     }
 
     runtime {
-        docker: "us.gcr.io/broad-dsp-lrma/lr-transcript_utils:0.0.1"
+        docker: "us.gcr.io/broad-dsp-lrma/lr-transcript_utils:0.0.2"
         memory: 16 + " GiB"
         disks: "local-disk " + disk_size + " HDD"
         boot_disk_gb: 10

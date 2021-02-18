@@ -90,6 +90,57 @@ task Segment
     }
 }
 
+task ScSplit
+{
+    input {
+        File reads_bam
+
+        Int umi_length = 10
+        String cbc_dummy = "CTGCCTAACCTGATCC"
+
+        String prefix = "scsplit"
+
+        RuntimeAttr? runtime_attr_override
+    }
+
+    # On average bam compression is 10x and we have more data on output than that:
+    Int disk_size = 15*ceil(size(reads_bam, "GB"))
+
+    command <<<
+        set -euxo pipefail
+
+        source /annmas/venv/bin/activate
+        annmas scsplit -t4 -v INFO -o ~{prefix} -u ~{umi_length} -c ~{cbc_dummy} ~{reads_bam}
+    >>>
+
+    output {
+        File mates1 = "~{prefix}_mates_1.fastq"
+        File mates2 = "~{prefix}_mates_2.fastq"
+        File whitelist = "~{prefix}_whitelist.txt"
+    }
+
+    #########################
+    RuntimeAttr default_attr = object {
+        cpu_cores:          4,             # Decent amount of CPU and Memory because network transfer speed is proportional to VM "power"
+        mem_gb:             8,
+        disk_gb:            disk_size,
+        boot_disk_gb:       10,
+        preemptible_tries:  0,             # This shouldn't take very long, but it's nice to have things done quickly, so no preemption here.
+        max_retries:        1,
+        docker:             "us.gcr.io/broad-dsp-lrma/lr-annmas:0.0.2"
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu:                    select_first([runtime_attr.cpu_cores,         default_attr.cpu_cores])
+        memory:                 select_first([runtime_attr.mem_gb,            default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " +  select_first([runtime_attr.disk_gb,           default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
+        preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
+        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+    }
+}
+
 task Inspect
 {
     input {
