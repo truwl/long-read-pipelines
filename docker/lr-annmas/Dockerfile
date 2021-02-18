@@ -8,6 +8,7 @@ RUN apt-get install -y curl git-lfs time datamash
 RUN curl https://sdk.cloud.google.com | bash
 
 RUN git clone https://github.com/broadinstitute/annmas.git
+RUN cd annmas && git checkout jts_sirv_alevin_input  
 RUN cd annmas && \
     python3 -mvenv venv && \
     . venv/bin/activate && \
