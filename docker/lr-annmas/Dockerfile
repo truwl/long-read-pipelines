@@ -7,6 +7,11 @@ RUN apt-get update
 RUN apt-get install -y curl git-lfs time datamash
 RUN curl https://sdk.cloud.google.com | bash
 
+# Setup crcmodc for gsutil:
+RUN apt-get install -y gcc python3-dev python3-setuptools && \
+			pip3 uninstall -y crcmod && \
+			pip3 install --no-cache-dir -U crcmod
+
 RUN git clone https://github.com/broadinstitute/annmas.git
 RUN cd annmas && \
     python3 -mvenv venv && \
