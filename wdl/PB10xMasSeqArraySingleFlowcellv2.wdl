@@ -433,8 +433,8 @@ workflow PB10xMasSeqSingleFlowcellv2 {
     }
 
     # Finalize all the Extracted Bounded Regions data:
-    String extractBoundedRegionsDir = base_out_dir + "/annmas"
-    call FF.FinalizeToDir as FinalizeEbrData {
+    String annotatedReadsDir = base_out_dir + "/annmas"
+    call FF.FinalizeToDir as FinalizeAnnotatedReads {
         input:
             files = [
                 MergeAnnotatedReads_3.merged_bam,
@@ -442,7 +442,7 @@ workflow PB10xMasSeqSingleFlowcellv2 {
                 MergeArrayElements_3.merged_bam,
                 MergeArrayElements_3.merged_bai
             ],
-            outdir = extractBoundedRegionsDir,
+            outdir = annotatedReadsDir,
             keyfile = GenerateStaticReport.html_report
     }
 
