@@ -14,6 +14,7 @@ RUN apt-get install -y gcc python3-dev python3-setuptools && \
 
 RUN git clone https://github.com/broadinstitute/annmas.git
 RUN cd annmas && \
+    git checkout jts_model_refactor_for_sirvs && \
     python3 -mvenv venv && \
     . venv/bin/activate && \
     pip install -r dev-requirements.txt && \
@@ -21,6 +22,11 @@ RUN cd annmas && \
 
 # activate conda environment
 RUN echo "source /annmas/venv/bin/activate" > ~/.bashrc
+
+# Fix python malloc bug
+# Detailed here: https://github.com/tensorflow/tensorflow/issues/6968 
+RUN apt-get install -y libtcmalloc-minimal4
+RUN echo 'export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libtcmalloc_minimal.so.4"' >> ~/.bashrc
 
 # We want this to be interactive:
 CMD ["/bin/bash"]
