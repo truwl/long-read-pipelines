@@ -155,9 +155,6 @@ task CCS {
         Float min_rq = 0.99
         Boolean by_strand = false
 
-        Int cpus = 4
-        Int preemptible_attempts = 2
-        Int mem_gb = 8
         Int disk_space_scale_factor = 2
 
         RuntimeAttr? runtime_attr_override
@@ -173,13 +170,17 @@ task CCS {
         infile=$( basename ~{subreads} )
         mv ~{subreads} $infile
 
+        # Get the number of processors we're runnign with:
+        num_procs=$(cat /proc/cpuinfo | grep processor | awk '{print $NF}' | sort -n | tail -n1)
+        let num_procs=$num_procs+1
+
         # Run CCS:
         ccs --min-passes ~{min_passes} \
             --min-snr ~{min_snr} \
             --min-length ~{min_length} \
             --max-length ~{max_length} \
             --min-rq ~{min_rq} \
-            --num-threads ~{cpus} \
+            --num-threads $num_procs \
             --report-file ccs_report.txt \
             ~{if by_strand then "--by-strand" else ""} $infile ccs_unmapped.bam
     >>>
@@ -191,11 +192,11 @@ task CCS {
 
     #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          cpus,
-        mem_gb:             mem_gb,
+        cpu_cores:          4,
+        mem_gb:             8,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
-        preemptible_tries:  preemptible_attempts,
+        preemptible_tries:  2,
         max_retries:        1,
         docker:             "us.gcr.io/broad-dsp-lrma/lr-pb:0.1.21"
     }
@@ -821,6 +822,50 @@ task CollectPolymeraseReadLengths {
         preemptible_tries:  0,             # This shouldn't take very long, but it's nice to have things done quickly, so no preemption here.
         max_retries:        1,
         docker:             "us.gcr.io/broad-dsp-lrma/lr-pb:0.1.24.1"
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu:                    select_first([runtime_attr.cpu_cores,         default_attr.cpu_cores])
+        memory:                 select_first([runtime_attr.mem_gb,            default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " +  select_first([runtime_attr.disk_gb,           default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
+        preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
+        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+    }
+}
+
+task PBIndex {
+    input {
+        File bam
+        RuntimeAttr? runtime_attr_override
+    }
+
+    Int disk_size = 2*ceil(size(bam, "GB"))
+
+    String base_name = basename(bam)
+
+    command <<<
+        set -euxo pipefail
+
+        # Run PBIndex:
+        pbindex ~{bam}
+        mv ~{bam}.pbi ~{base_name}.pbi
+    >>>
+
+    output {
+        File pbindex = "~{base_name}.pbi"
+    }
+
+    #########################
+    RuntimeAttr default_attr = object {
+        cpu_cores:          1,             # Decent amount of CPU and Memory because network transfer speed is proportional to VM "power"
+        mem_gb:             4,
+        disk_gb:            disk_size,
+        boot_disk_gb:       10,
+        preemptible_tries:  0,             # This shouldn't take very long, but it's nice to have things done quickly, so no preemption here.
+        max_retries:        1,
+        docker:             "us.gcr.io/broad-dsp-lrma/lr-pb:0.1.21"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {

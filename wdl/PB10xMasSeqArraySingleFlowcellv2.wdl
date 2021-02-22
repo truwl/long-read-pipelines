@@ -107,13 +107,16 @@ workflow PB10xMasSeqSingleFlowcellv2 {
             # Call CCS on the subreads from the sequencer:
             # No preepting because these take long enough that it doesn't seem to save $
             # 16 gigs of memory because I had a crash at 8
+            RuntimeAttr ccs_runtime_attrs = object {
+                mem_gb: 16,
+                preemptible_tries: 0
+            }
             call PB.CCS {
                 input:
                     subreads = subreads,
-                    preemptible_attempts = 0,
                     min_passes = min_ccs_passes,
                     disk_space_scale_factor = 4,
-                    mem_gb = 16
+                    runtime_attr_override = ccs_runtime_attrs
             }
 
             # Get our uncorrected / CCS Rejected reads:
@@ -191,14 +194,6 @@ workflow PB10xMasSeqSingleFlowcellv2 {
                     prefix = SM + "_ArrayElements_intermediate_1"
             }
 
-            call AR.Minimap2 as AlignArrayElements {
-                input:
-                    reads      = [ MergeArrayElements_1.merged_bam ],
-                    ref_fasta  = ref_fasta,
-                    RG         = RG_array_elements,
-                    map_preset = "splice"
-            }
-
             ## For some reason we need a LOT of memory for this.
             ## Need to debug it or remove the alignment of CCS (non-split) reads:
             RuntimeAttr align_ccs_reads_runtime_attrs = object {
@@ -216,8 +211,8 @@ workflow PB10xMasSeqSingleFlowcellv2 {
 
             call TENX.AnnotateBarcodesAndUMIs as TenxAnnotateArrayElements {
                 input:
-                    bam_file = AlignArrayElements.aligned_bam,
-                    bam_index = AlignArrayElements.aligned_bai,
+                    bam_file = MergeAnnotatedReads_1.merged_bam,
+                    bam_index = MergeAnnotatedReads_1.merged_bai,
                     head_adapter_fasta = head_adapter_fasta,
                     tail_adapter_fasta = tail_adapter_fasta,
                     read_end_length = 200,
@@ -225,6 +220,14 @@ workflow PB10xMasSeqSingleFlowcellv2 {
                     barcode_length = 16,
                     umi_length = 10,
                     mem_gb = 32
+            }
+
+            call AR.Minimap2 as AlignArrayElements {
+                input:
+                    reads      = [ TenxAnnotateArrayElements.output_bam ],
+                    ref_fasta  = ref_fasta,
+                    RG         = RG_array_elements,
+                    map_preset = "splice"
             }
         }
 
@@ -323,6 +326,14 @@ workflow PB10xMasSeqSingleFlowcellv2 {
         input:
             bams = MergeArrayElements_2.merged_bam,
             prefix = SM[0] + "_ArrayElements"
+    }
+    call PB.PBIndex as PbIndexAnnotatedReads {
+        input:
+            bam = MergeAnnotatedReads_3.merged_bam
+    }
+    call PB.PBIndex as PbIndexArrayElements {
+        input:
+            bam = MergeArrayElements_3.merged_bam
     }
 
     # Merge the 10x merged stats:
@@ -439,8 +450,11 @@ workflow PB10xMasSeqSingleFlowcellv2 {
             files = [
                 MergeAnnotatedReads_3.merged_bam,
                 MergeAnnotatedReads_3.merged_bai,
+                PbIndexAnnotatedReads.pbindex,
+
                 MergeArrayElements_3.merged_bam,
-                MergeArrayElements_3.merged_bai
+                MergeArrayElements_3.merged_bai,
+                PbIndexArrayElements.pbindex
             ],
             outdir = annotatedReadsDir,
             keyfile = GenerateStaticReport.html_report

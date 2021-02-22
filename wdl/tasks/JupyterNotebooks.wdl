@@ -140,6 +140,7 @@ task PB10xMasSeqSingleFlowcellReport {
         File populated_notebook = nb_name
         File html_report = html_out
         File pdf_report = pdf_out
+        File generated_config = "mas-seq_qc_inputs.config"
     }
 
     #########################

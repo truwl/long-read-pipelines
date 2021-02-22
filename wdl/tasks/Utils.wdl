@@ -850,7 +850,7 @@ task MergeFiles {
     # ------------------------------------------------
     # Process input args:
 
-    String timing_output_file = "merge_fastas.timingInformation.txt"
+    String timing_output_file = "merge_files.timingInformation.txt"
     Int split_size = 5400
 
     # ------------------------------------------------

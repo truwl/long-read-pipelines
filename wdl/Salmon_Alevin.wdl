@@ -1,8 +1,8 @@
 version 1.0
 
-import "Salmon_Tasks.wdl" as SALMON
+import "tasks/TranscriptAnalysis/Salmon_Tasks.wdl" as SALMON
 
-workflow RunSalmonOnCellBarcodedReads {
+workflow Salmon_Alevin {
 
     meta {
         description : "Quantify transcripts from single cell RNA transcript reads using SALMON Alevin."
@@ -16,8 +16,7 @@ workflow RunSalmonOnCellBarcodedReads {
         File cb_whitelist
 
         File transcript_fasta = "gs://broad-dsde-methods-long-reads/resources/gencode_v34/gencode.v34.pc_transcripts.fa"
-        File? tgmap = "gs://broad-dsde-methods-long-reads/resources/gencode_v34/gencode.v34.pc_transcripts.tgmap.tsv"
-        Boolean allow_naive_tgmap = false
+        File tgmap = "gs://broad-dsde-methods-long-reads/resources/gencode_v34/gencode.v34.pc_transcripts.tgmap.tsv"
         Int index_kmer_size = 31
         Boolean is_gencode_transcriptome = true
 
@@ -35,8 +34,7 @@ workflow RunSalmonOnCellBarcodedReads {
         cb_whitelist : "Cell barcode whitelist file for Alevin.  One cell barcode per line."
 
         transcript_fasta : "[optional] FASTA file containing all transcript sequences to quantify.  (Default: gs://broad-dsde-methods-long-reads/resources/gencode_v34/gencode.v34.pc_transcripts.fa)"
-        tgmap : "[optional] Transcript / Gene map for Alevin.  Unheadered TSV with two columns - Transcript | Gene.  (Default: gs://broad-dsde-methods-long-reads/resources/gencode_v34/gencode.v34.pc_transcripts.tgmap.tsv)"
-        allow_naive_tgmap : "[optional] If no tgmap is supplied, allow the tool to create a naive tgmap with each transcript considered as its own gene.  (Default: False)"
+        tgmap : "Transcript / Gene map for Alevin.  Unheadered TSV with two columns - Transcript | Gene.  (Default: gs://broad-dsde-methods-long-reads/resources/gencode_v34/gencode.v34.pc_transcripts.tgmap.tsv)"
         index_kmer_size : "[optional] K-mer size to use for the SALMON index of the given transcript_fasta.  (Default: 31)"
         is_gencode_transcriptome : "[optional] True if the given transcript_fasta is a gencode file.  False otherwise. (Default: True)"
 
@@ -55,7 +53,6 @@ workflow RunSalmonOnCellBarcodedReads {
             cb_whitelist = cb_whitelist,
             transcript_fasta = transcript_fasta,
             tgmap = tgmap,
-            allow_naive_tgmap = allow_naive_tgmap,
             index_kmer_size = index_kmer_size,
             is_gencode_transcriptome = is_gencode_transcriptome,
             library_type = library_type,
@@ -70,6 +67,5 @@ workflow RunSalmonOnCellBarcodedReads {
     output {
         File output_tar_gz = alevin.output_tar_gz
         File output_fastq = alevin.output_fastq
-        File tgmap = alevin.tgmap
     }
 }

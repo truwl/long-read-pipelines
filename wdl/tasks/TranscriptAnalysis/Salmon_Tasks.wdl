@@ -1,5 +1,7 @@
 version 1.0
 
+import "../Structs.wdl"
+
 task RunSalmonQuantTask {
 
     meta {
@@ -103,8 +105,8 @@ task Alevin {
         File cb_whitelist
 
         File transcript_fasta
-        File? tgmap
-        Boolean allow_naive_tgmap = false
+        File tgmap
+
         Int index_kmer_size = 31
         Boolean is_gencode_transcriptome = false
 
@@ -132,25 +134,6 @@ task Alevin {
         fi
         salmon index -i salmon_index -k ~{index_kmer_size} $gencode_arg -p 24 -t ~{transcript_fasta}
 
-        # Create our tgmap if we have to:
-        TGMAP="~{tgmap_file}"
-        if [[ $TGMAP == "" ]] ; then
-            if ~{is_gencode_transcriptome} ; then
-                grep '^>' ~{transcript_fasta} | tr -d '>' | awk 'BEGIN{FS="|";OFS="\t"}{print $1,$2}' > tgmap.tsv
-            elif ~{allow_naive_tgmap} ; then
-                # In the absence of being able to do anything else, we make a VERY naive transcript map that treats each
-                # transcript separately.  For most cases this is NOT what you want, but it is useful sometimes.
-                echo "WARNING: You didn't specify a TGMAP.  Creating naive tx->tx tgmap.  Each tx will be treated as a separate gene.  This may not be what you want."
-                echo "WARNING: You didn't specify a TGMAP.  Creating naive tx->tx tgmap.  Each tx will be treated as a separate gene.  This may not be what you want." 1>&2
-                grep '^>' ~{transcript_fasta} | awk 'BEGIN{OFS="\t"}{print $1,$1}' > tgmap.tsv
-            else
-                echo "ERROR: You didn't specify a TGMAP and 'allow_naive_tgmap' is false.  Aborting." 1>&2
-                false
-            fi
-        else
-            mv $TGMAP tgmap.tsv
-        fi
-
         # Run alevin:
         salmon alevin \
             --libType ~{library_type} \
@@ -162,21 +145,23 @@ task Alevin {
             --mates1 ~{mates1_fastq} \
             --mates2 ~{mates2_fastq} \
             --index salmon_index \
-            --tgMap tgmap.tsv \
+            --tgMap ~{tgmap} \
             --threads 24 \
             --dumpMtx \
             --dumpArborescences \
             --dumpfq \
+            --dumpUmiGraph \
             > ~{prefix}.fastq
 
         # Zip up the output folder:
+        echo "Zipping up the output..."
         tar -zcf ~{prefix}.tar.gz ~{prefix}
+        echo "Done"
     >>>
 
     output {
         File output_tar_gz = "~{prefix}.tar.gz"
         File output_fastq = "~{prefix}.fastq"
-        File tgmap = "tgmap.tsv"
     }
 
     #########################

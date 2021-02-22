@@ -17,7 +17,7 @@ task Annotate
         set -euxo pipefail
 
         source /annmas/venv/bin/activate
-        annmas annotate -t4 -v INFO ~{reads} -o ~{prefix}.bam
+        annmas annotate -t8 -v INFO ~{reads} -o ~{prefix}.bam
     >>>
 
     output {
@@ -26,13 +26,13 @@ task Annotate
 
     #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          4,             # Decent amount of CPU and Memory because network transfer speed is proportional to VM "power"
+        cpu_cores:          8,             # Decent amount of CPU and Memory because network transfer speed is proportional to VM "power"
         mem_gb:             8,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
         preemptible_tries:  0,             # This shouldn't take very long, but it's nice to have things done quickly, so no preemption here.
         max_retries:        1,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-annmas:0.0.2"
+        docker:             "us.gcr.io/broad-dsp-lrma/lr-annmas:0.0.3"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -76,7 +76,7 @@ task Segment
         boot_disk_gb:       10,
         preemptible_tries:  0,             # This shouldn't take very long, but it's nice to have things done quickly, so no preemption here.
         max_retries:        1,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-annmas:0.0.2"
+        docker:             "us.gcr.io/broad-dsp-lrma/lr-annmas:0.0.3"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -95,6 +95,8 @@ task ScSplit
     input {
         File reads_bam
 
+        String force_option = ""
+
         Int umi_length = 10
         String cbc_dummy = "CTGCCTAACCTGATCC"
 
@@ -110,12 +112,12 @@ task ScSplit
         set -euxo pipefail
 
         source /annmas/venv/bin/activate
-        annmas scsplit -t4 -v INFO -o ~{prefix} -u ~{umi_length} -c ~{cbc_dummy} ~{reads_bam}
+        annmas scsplit -t4 -v INFO ~{force_option} -o ~{prefix} -u ~{umi_length} -c ~{cbc_dummy} ~{reads_bam}
     >>>
 
     output {
-        File mates1 = "~{prefix}_mates_1.fastq"
-        File mates2 = "~{prefix}_mates_2.fastq"
+        File mates1 = "~{prefix}_mates1.fastq"
+        File mates2 = "~{prefix}_mates2.fastq"
         File whitelist = "~{prefix}_whitelist.txt"
     }
 
@@ -127,7 +129,7 @@ task ScSplit
         boot_disk_gb:       10,
         preemptible_tries:  0,             # This shouldn't take very long, but it's nice to have things done quickly, so no preemption here.
         max_retries:        1,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-annmas:0.0.2"
+        docker:             "us.gcr.io/broad-dsp-lrma/lr-annmas:0.0.3"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -176,7 +178,7 @@ task Inspect
         boot_disk_gb:       10,
         preemptible_tries:  0,             # This shouldn't take very long, but it's nice to have things done quickly, so no preemption here.
         max_retries:        1,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-annmas:0.0.2"
+        docker:             "us.gcr.io/broad-dsp-lrma/lr-annmas:0.0.3"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
